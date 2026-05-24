@@ -19,3 +19,8 @@ curl --location 'https://api.siliconflow.cn/v1/audio/speech' \
   "stream": true
 }'
 
+生图配置
+gpt-image-2
+https://api.hiyo.top/v1
+sk-j1gAfU3lBu10wJrOoe0tdcleAd0KyWFa1FSSozbMqvHo31Hh
+这是生图模型的配置，另外注意图像比例，而且当前模型也有图像编辑模式

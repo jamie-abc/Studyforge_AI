@@ -37,69 +37,139 @@ public class SiliconFlowAiServiceImpl implements AiService {
 
     @Override
     public String generateSummary(String content, String language) {
-        return complete("""
-                请用用户指定语言提炼这篇学习内容。输出要像真实学习产品里的 AI 摘要：
+        String prompt = isEnglish(language)
+                ? """
+                Please summarize this learning post in English. Make the output feel like an AI summary in a real learning product:
+                1. Start with 3 key points.
+                2. Then add one concise takeaway worth saving.
+                3. Do not mention "according to the document" or "as an AI".
+
+                Website language: English
+
+                Content:
+                %s
+                """.formatted(content)
+                : """
+                请用中文提炼这篇学习内容。输出要像真实学习产品里的 AI 摘要：
                 1. 先给 3 条要点；
                 2. 再给 1 句适合收藏的结论；
                 3. 不要提“根据文档/作为 AI”。
-                语言：%s
+
+                网站语言：中文
+
                 内容：
                 %s
-                """.formatted(language, content), () -> fallback.generateSummary(content, language));
+                """.formatted(content);
+        return complete(prompt, () -> fallback.generateSummary(content, language));
     }
 
     @Override
     public String generateTags(String content, String language) {
-        return complete("为下面内容生成 4 到 6 个学习标签，用逗号分隔。语言：" + language + "\n" + content,
-                () -> fallback.generateTags(content, language));
+        String prompt = isEnglish(language)
+                ? "Generate 4 to 6 learning tags for the content below. Output English tags separated by commas.\n" + content
+                : "为下面内容生成 4 到 6 个学习标签，用中文输出，并用逗号分隔。\n" + content;
+        return complete(prompt, () -> fallback.generateTags(content, language));
     }
 
     @Override
     public String recommendCategory(String content, String language) {
-        return complete("从 TECHNOLOGY、BUSINESS、PRODUCTIVITY、CAREER、FINANCE 中选一个最适合的分类，只输出分类编码。\n" + content,
-                () -> fallback.recommendCategory(content, language));
+        String prompt = isEnglish(language)
+                ? "Choose the best category from TECHNOLOGY, BUSINESS, PRODUCTIVITY, CAREER, FINANCE. Output only the category code.\n" + content
+                : "从 TECHNOLOGY、BUSINESS、PRODUCTIVITY、CAREER、FINANCE 中选一个最适合的分类，只输出分类编码。\n" + content;
+        return complete(prompt, () -> fallback.recommendCategory(content, language));
     }
 
     @Override
     public String translateText(String text, String sourceLang, String targetLang) {
-        return complete("把下面文本从 " + sourceLang + " 翻译到 " + targetLang + "，只输出译文。\n" + text,
-                () -> fallback.translateText(text, sourceLang, targetLang));
+        String prompt = isEnglish(targetLang)
+                ? "Translate the following text from " + sourceLang + " to " + targetLang + ". Output only the translation.\n" + text
+                : "把下面文本从 " + sourceLang + " 翻译到 " + targetLang + "，只输出译文。\n" + text;
+        return complete(prompt, () -> fallback.translateText(text, sourceLang, targetLang));
     }
 
     @Override
     public String moderateContent(String content, String language) {
-        return complete("判断下面内容是否适合学习社区发布，输出 LOW_RISK、MEDIUM_RISK 或 HIGH_RISK，并给一句理由。\n" + content,
-                () -> fallback.moderateContent(content, language));
+        String prompt = isEnglish(language)
+                ? "Review whether the following content is suitable for a learning community. Output LOW_RISK, MEDIUM_RISK, or HIGH_RISK, followed by one short reason.\n" + content
+                : "判断下面内容是否适合学习社区发布，输出 LOW_RISK、MEDIUM_RISK 或 HIGH_RISK，并给一句理由。\n" + content;
+        return complete(prompt, () -> fallback.moderateContent(content, language));
     }
 
     @Override
     public String answerQuestion(String postContent, String question, String answerLanguage) {
-        return complete("""
+        String prompt = isEnglish(answerLanguage)
+                ? """
+                You are StudyForge AI's learning assistant. Answer only from the article content.
+                Answer in English.
+
+                Article:
+                %s
+
+                Question:
+                %s
+                """.formatted(postContent, question)
+                : """
                 你是 StudyForge AI 的学习助手。请只依据文章内容回答问题。
-                回答语言：%s
+                请用中文回答。
+
                 文章：
                 %s
+
                 问题：
                 %s
-                """.formatted(answerLanguage, postContent, question), () -> fallback.answerQuestion(postContent, question, answerLanguage));
+                """.formatted(postContent, question);
+        return complete(prompt, () -> fallback.answerQuestion(postContent, question, answerLanguage));
     }
 
     @Override
     public String generateQuiz(String postContent, String language) {
-        return complete("""
+        String prompt = isEnglish(language)
+                ? """
+                Turn this learning post into review cards. Output 4 cards. Each card must include:
+                - Question
+                - Short answer
+                - Keywords for review
+
+                Website language: English
+
+                Content:
+                %s
+                """.formatted(postContent)
+                : """
                 请把这篇学习内容整理成复习卡片。输出 4 张卡片，每张包含：
                 - 问题
                 - 简短答案
                 - 适合回顾的关键词
-                语言：%s
+
+                网站语言：中文
+
                 内容：
                 %s
-                """.formatted(language, postContent), () -> fallback.generateQuiz(postContent, language));
+                """.formatted(postContent);
+        return complete(prompt, () -> fallback.generateQuiz(postContent, language));
     }
 
     @Override
     public String formatMarkdown(String content, String language) {
-        return complete("""
+        String prompt = isEnglish(language)
+                ? """
+                You are StudyForge AI's article formatting assistant. Reformat the user's plain text into Markdown suitable for a learning community post.
+
+                Strict rules:
+                - Output Markdown body only. Do not add explanations, prefaces, or code fences around the whole answer.
+                - Preserve the user's meaning. Do not add facts or invent data.
+                - Keep the source text's own language. If the source mixes Chinese and English, keep the mixed expression.
+                - Add level-2 or level-3 headings, lists, quotes, tables, or code blocks when they naturally fit.
+                - If the source already includes links, code, steps, or checklists, keep them and make them clearer.
+                - Do not insert images that are not present in the source.
+                - The output should be ready to paste into the Markdown editor.
+
+                Website language: English
+
+                Source:
+                %s
+                """.formatted(content)
+                : """
                 你是 StudyForge AI 的文章排版助手。请把用户的纯文字整理成适合学习社区发布的 Markdown。
 
                 严格要求：
@@ -111,11 +181,12 @@ public class SiliconFlowAiServiceImpl implements AiService {
                 - 不要插入不存在的图片。
                 - 输出要适合直接写入 Markdown 编辑器。
 
-                用户选择的内容语言：%s
+                网站语言：中文
 
                 原文：
                 %s
-                """.formatted(language, content), () -> fallback.formatMarkdown(content, language));
+                """.formatted(content);
+        return complete(prompt, () -> fallback.formatMarkdown(content, language));
     }
 
     private String complete(String prompt, Fallback fallbackValue) {
@@ -194,6 +265,10 @@ public class SiliconFlowAiServiceImpl implements AiService {
             }
         }
         return null;
+    }
+
+    private boolean isEnglish(String language) {
+        return language != null && language.toLowerCase(java.util.Locale.ROOT).startsWith("en");
     }
 
     @FunctionalInterface

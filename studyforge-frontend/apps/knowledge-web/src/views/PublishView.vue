@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   Bold,
   Code2,
@@ -23,8 +23,9 @@ import {
   X
 } from '@lucide/vue';
 import { formatMarkdown as requestMarkdownFormat } from '@/api/ai';
-import { createPost } from '@/api/posts';
+import { createPost, getPostDetail, updatePost } from '@/api/posts';
 import { uploadImage } from '@/api/uploads';
+import LoadingState from '@/components/LoadingState.vue';
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
@@ -36,9 +37,11 @@ const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 const router = useRouter();
+const route = useRoute();
 const sessionStore = useSessionStore();
 const preferencesStore = usePreferencesStore();
 const loading = ref(false);
+const loadingPost = ref(false);
 const uploading = ref(false);
 const formatting = ref(false);
 const errorMessage = ref('');
@@ -47,6 +50,7 @@ const mode = ref<EditorMode>('split');
 const editorRef = ref<HTMLTextAreaElement | null>(null);
 const coverDragActive = ref(false);
 const editorDragActive = ref(false);
+const restoring = ref(false);
 
 const form = reactive({
   title: '',
@@ -89,9 +93,29 @@ const templates = [
 const wordCount = computed(() => form.content.replace(/\s+/g, '').length);
 const readingMinutes = computed(() => Math.max(1, Math.ceil(wordCount.value / 450)));
 const hasDraft = computed(() => Boolean(form.title || form.summary || form.content || form.coverImageUrl));
+const isEditMode = computed(() => route.name === 'post-edit');
+const editPostId = computed(() => (typeof route.params.postId === 'string' ? route.params.postId : ''));
+const currentDraftKey = computed(() => (isEditMode.value && editPostId.value ? `${DRAFT_KEY}.${editPostId.value}` : DRAFT_KEY));
+const pageTitle = computed(() => (isEditMode.value ? '编辑这篇帖子' : '写一篇可以沉淀的学习帖子'));
+const pageDescription = computed(() =>
+  isEditMode.value
+    ? '修改正文、摘要、封面和主题后保存，文章会继续保留原有的阅读、收藏和讨论记录。'
+    : '用 Markdown 写正文，也可以通过工具栏插入标题、链接、图片、代码块和表格。右侧预览就是发布后的文章效果。'
+);
+
+function categoryIdFromCode(categoryCode: string) {
+  const map: Record<string, number> = {
+    TECHNOLOGY: 1,
+    BUSINESS: 2,
+    PRODUCTIVITY: 3,
+    CAREER: 4,
+    FINANCE: 5
+  };
+  return map[categoryCode] ?? 1;
+}
 
 function saveDraft() {
-  localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+  localStorage.setItem(currentDraftKey.value, JSON.stringify(form));
   savedMessage.value = '草稿已保存';
   window.setTimeout(() => {
     savedMessage.value = '';
@@ -99,11 +123,11 @@ function saveDraft() {
 }
 
 function clearDraft() {
-  localStorage.removeItem(DRAFT_KEY);
+  localStorage.removeItem(currentDraftKey.value);
 }
 
 function loadDraft() {
-  const raw = localStorage.getItem(DRAFT_KEY);
+  const raw = localStorage.getItem(currentDraftKey.value);
   if (!raw) {
     return;
   }
@@ -119,6 +143,58 @@ function loadDraft() {
   } catch {
     clearDraft();
   }
+}
+
+async function loadEditablePost() {
+  if (!editPostId.value) {
+    return;
+  }
+  if (!sessionStore.isAuthenticated) {
+    await router.push({ path: '/login', query: { redirect: route.fullPath } });
+    return;
+  }
+
+  loadingPost.value = true;
+  restoring.value = true;
+  errorMessage.value = '';
+
+  try {
+    const detail = await getPostDetail(editPostId.value, preferencesStore.languageCode);
+    if (detail.authorId !== sessionStore.userId) {
+      errorMessage.value = '只有作者本人可以编辑这篇帖子。';
+      return;
+    }
+    form.title = detail.title;
+    form.summary = detail.summary;
+    form.content = detail.content;
+    form.coverImageUrl = detail.coverImageUrl ?? '';
+    form.categoryId = categoryIdFromCode(detail.categoryCode);
+    form.originalLanguage = detail.languageCode;
+    loadDraft();
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '这篇帖子暂时无法编辑';
+  } finally {
+    restoring.value = false;
+    loadingPost.value = false;
+  }
+}
+
+async function loadInitialState() {
+  restoring.value = true;
+  errorMessage.value = '';
+  if (isEditMode.value) {
+    restoring.value = false;
+    await loadEditablePost();
+    return;
+  }
+  form.title = '';
+  form.summary = '';
+  form.content = '';
+  form.coverImageUrl = '';
+  form.categoryId = 1;
+  form.originalLanguage = preferencesStore.languageCode;
+  loadDraft();
+  restoring.value = false;
 }
 
 function insertMarkdown(before: string, after = '', placeholder = '文本') {
@@ -323,7 +399,7 @@ async function formatWithAi() {
   errorMessage.value = '';
 
   try {
-    const result = await requestMarkdownFormat(source, form.originalLanguage);
+    const result = await requestMarkdownFormat(source, form.originalLanguage, preferencesStore.languageCode);
     form.content = result.text.trim();
     mode.value = 'split';
     saveDraft();
@@ -336,7 +412,7 @@ async function formatWithAi() {
 
 async function submit() {
   if (!sessionStore.isAuthenticated) {
-    await router.push({ path: '/login', query: { redirect: '/publish' } });
+    await router.push({ path: '/login', query: { redirect: route.fullPath } });
     return;
   }
 
@@ -344,29 +420,37 @@ async function submit() {
   errorMessage.value = '';
 
   try {
-    const postId = await createPost({
+    const payload = {
       categoryId: Number(form.categoryId),
       originalLanguage: form.originalLanguage,
       coverImageUrl: form.coverImageUrl || null,
       title: form.title.trim(),
       summary: form.summary.trim(),
       content: form.content.trim()
-    });
+    };
+    const postId = isEditMode.value && editPostId.value ? await updatePost(editPostId.value, payload) : await createPost(payload);
     clearDraft();
     await router.push(`/posts/${postId}`);
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '暂时发布不了，请稍后再试';
+    errorMessage.value = error instanceof Error ? error.message : isEditMode.value ? '暂时保存不了，请稍后再试' : '暂时发布不了，请稍后再试';
   } finally {
     loading.value = false;
   }
 }
 
-onMounted(loadDraft);
+onMounted(loadInitialState);
+
+watch(
+  () => [route.name, route.params.postId],
+  () => loadInitialState()
+);
 
 watch(
   form,
   () => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+    if (!restoring.value) {
+      localStorage.setItem(currentDraftKey.value, JSON.stringify(form));
+    }
   },
   { deep: true }
 );
@@ -376,11 +460,13 @@ watch(
   <section class="editor-page markdown-editor-page">
     <div class="page-heading">
       <span class="section-kicker">Markdown Post</span>
-      <h1>写一篇可以沉淀的学习帖子</h1>
-      <p>用 Markdown 写正文，也可以通过工具栏插入标题、链接、图片、代码块和表格。右侧预览就是发布后的文章效果。</p>
+      <h1>{{ pageTitle }}</h1>
+      <p>{{ pageDescription }}</p>
     </div>
 
-    <form class="editor-layout markdown-editor-layout" @submit.prevent="submit">
+    <LoadingState v-if="loadingPost" label="正在读取帖子内容" />
+
+    <form v-else class="editor-layout markdown-editor-layout" @submit.prevent="submit">
       <div class="editor-main markdown-editor-main">
         <div class="post-composer-head">
           <label>
@@ -512,7 +598,7 @@ watch(
           </button>
           <button class="primary-button" type="submit" :disabled="loading || uploading || formatting">
             <Send :size="17" />
-            <span>{{ loading ? '正在发布' : uploading ? '正在上传' : formatting ? '正在排版' : '发布到知识流' }}</span>
+            <span>{{ loading ? (isEditMode ? '正在保存' : '正在发布') : uploading ? '正在上传' : formatting ? '正在排版' : isEditMode ? '保存修改' : '发布到知识流' }}</span>
           </button>
         </div>
       </div>

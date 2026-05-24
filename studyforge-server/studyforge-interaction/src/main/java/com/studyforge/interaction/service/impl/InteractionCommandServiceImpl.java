@@ -6,7 +6,9 @@ import com.studyforge.content.entity.Post;
 import com.studyforge.content.mapper.PostMapper;
 import com.studyforge.interaction.dto.CreateCommentRequest;
 import com.studyforge.interaction.entity.Comment;
+import com.studyforge.interaction.entity.FavoriteCollection;
 import com.studyforge.interaction.mapper.CommentMapper;
+import com.studyforge.interaction.mapper.FavoriteCollectionMapper;
 import com.studyforge.interaction.mapper.PostFavoriteMapper;
 import com.studyforge.interaction.mapper.PostLikeMapper;
 import com.studyforge.interaction.mapper.PostViewHistoryMapper;
@@ -26,17 +28,20 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
     private final PostLikeMapper postLikeMapper;
     private final PostFavoriteMapper postFavoriteMapper;
     private final PostViewHistoryMapper postViewHistoryMapper;
+    private final FavoriteCollectionMapper favoriteCollectionMapper;
 
     public InteractionCommandServiceImpl(PostMapper postMapper,
                                          CommentMapper commentMapper,
                                          PostLikeMapper postLikeMapper,
                                          PostFavoriteMapper postFavoriteMapper,
-                                         PostViewHistoryMapper postViewHistoryMapper) {
+                                         PostViewHistoryMapper postViewHistoryMapper,
+                                         FavoriteCollectionMapper favoriteCollectionMapper) {
         this.postMapper = postMapper;
         this.commentMapper = commentMapper;
         this.postLikeMapper = postLikeMapper;
         this.postFavoriteMapper = postFavoriteMapper;
         this.postViewHistoryMapper = postViewHistoryMapper;
+        this.favoriteCollectionMapper = favoriteCollectionMapper;
     }
 
     @Override
@@ -58,8 +63,14 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
         assertPost(postId);
         if (postFavoriteMapper.countByPostAndUser(postId, userId) > 0) {
             postFavoriteMapper.deleteByPostAndUser(postId, userId);
+            favoriteCollectionMapper.deleteItemsByPostAndUser(postId, userId);
             postMapper.incrementFavoriteCount(postId, -1);
         } else if (postFavoriteMapper.insertIgnore(postId, userId) > 0) {
+            favoriteCollectionMapper.insertIgnoreDefault(userId);
+            FavoriteCollection defaultCollection = favoriteCollectionMapper.selectDefaultByUser(userId);
+            if (defaultCollection != null) {
+                favoriteCollectionMapper.insertIgnoreItem(defaultCollection.getCollectionId(), postId, userId);
+            }
             postMapper.incrementFavoriteCount(postId, 1);
         }
         return state(postId, userId);

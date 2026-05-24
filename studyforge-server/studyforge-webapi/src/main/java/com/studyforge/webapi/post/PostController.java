@@ -12,6 +12,7 @@ import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -56,6 +57,14 @@ public class PostController {
                                     @RequestBody CreatePostRequest request) {
         Long userId = authService.requireUserId(authorization);
         return ApiResponse.success("created", postCommandService.create(userId, request));
+    }
+
+    @PutMapping("/{postId}")
+    public ApiResponse<Long> update(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                    @PathVariable("postId") Long postId,
+                                    @RequestBody CreatePostRequest request) {
+        Long userId = authService.requireUserId(authorization);
+        return ApiResponse.success("updated", postCommandService.update(userId, postId, request));
     }
 
     @GetMapping("/me/favorites")

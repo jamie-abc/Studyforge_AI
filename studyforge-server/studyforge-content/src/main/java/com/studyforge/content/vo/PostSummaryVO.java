@@ -1,6 +1,9 @@
 package com.studyforge.content.vo;
 
 public record PostSummaryVO(Long postId,
+                            Long authorId,
+                            String authorName,
+                            String authorAvatarUrl,
                             String title,
                             String summary,
                             String languageCode,

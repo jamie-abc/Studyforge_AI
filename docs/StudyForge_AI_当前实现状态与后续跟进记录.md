@@ -273,7 +273,7 @@ knowledge-web build:  通过
 
 1. 内容编辑、删除、草稿箱和分页查询。
 2. 图片管理页，让用户查看、复用和清理自己上传过的图片。
-3. 管理端内容审核、用户管理、举报处理和操作审计列表。
+3. 管理端操作审计列表、审核规则配置和批量处理。
 4. AI 摘要缓存与重复生成提示，降低同一文章重复调用模型的次数。
 5. 语音识别 STT 与语音搜索。
 6. 分类从后端接口读取，替代前端固定分类数组。
@@ -475,7 +475,7 @@ npm run build
 本轮已经把主要用户侧链路打通。下一轮建议继续做这些增强：
 
 1. 内容编辑、删除、草稿箱和分页。
-2. 管理端内容审核、用户管理、举报处理。
+2. 管理端操作审计列表、审核规则配置和批量处理。
 3. 求助详情独立页面和采纳答案前端交互。
 4. AI 生成摘要缓存与重复生成提示，避免同一文章重复调用模型。
 5. 语音识别 STT 与语音搜索。
@@ -614,7 +614,7 @@ npm run build --workspace @studyforge/knowledge-web
 1. 帖子编辑、删除、草稿箱从本地草稿升级为数据库草稿。
 2. 图片管理页，让用户查看和复用自己上传过的图片。
 3. 后端分页和游标加载，让知识流支持更长列表。
-4. 管理端内容审核，支持查看 Markdown 原文、渲染预览和图片封面。
+4. 管理端操作审计列表，支持追踪置顶、下架、恢复和账号处理记录。
 5. 分类从后端接口读取，发布页和知识流不再维护固定分类数组。
 
 ## 10. 2026-05-24 知识流语言规则与 AI 排版增强记录
@@ -778,6 +778,166 @@ npm run build
 后端 API:      http://localhost:8080/api/v1/health
 ```
 
+## 14. 2026-05-25 用户社区、好友、学习看板与文章编辑记录
+
+本轮继续保持既定链路：
+
+```text
+Vue 前端
+    ↓ Axios
+Spring MVC Controller 返回 JSON
+    ↓
+Service
+    ↓
+MyBatis Mapper
+    ↓
+本机 MySQL / MariaDB
+```
+
+### 14.1 好友与私信
+
+新增真实数据库表：
+
+- `friend_requests`：好友申请。
+- `friendships`：已通过的好友关系。
+- `friend_messages`：好友私信。
+
+新增用户侧接口：
+
+- `GET /api/v1/users/{userId}/friends`
+- `GET /api/v1/users/me/friends`
+- `POST /api/v1/users/{userId}/friend-requests`
+- `GET /api/v1/users/me/friend-requests/incoming`
+- `GET /api/v1/users/me/friend-requests/outgoing`
+- `POST /api/v1/users/me/friend-requests/{requestId}/review`
+- `GET /api/v1/users/me/friends/{friendId}/messages`
+- `POST /api/v1/users/me/friends/{friendId}/messages`
+
+当前规则：
+
+- 关注、粉丝、好友是三套独立关系。
+- 个人主页的好友列表只读取 `friendships`，不再把关注和粉丝拼接成好友。
+- 别人访问用户主页时，可根据关系状态发送好友申请、通过申请或进入好友消息页。
+- `/friends` 支持查看好友、处理申请、查看已发申请和发送私信。
+
+### 14.2 账号资料编辑
+
+新增用户侧页面：
+
+- `/account`
+
+能力：
+
+- 修改用户名、邮箱、显示名称、签名、头像、主页背景。
+- 支持上传头像和主页背景，继续走现有 `uploaded_files` 与 `/api/v1/files/images/{filename}` 链路。
+- 支持修改密码，当前沿用项目现有 `sha256:` 哈希格式。
+- 保存后同步更新前端 session 中的用户显示信息。
+
+### 14.3 文章编辑
+
+新增后端接口：
+
+- `PUT /api/v1/posts/{postId}`
+
+能力：
+
+- 只有作者本人可以编辑帖子。
+- 支持修改标题、摘要、正文 Markdown、封面、主题和原始语言。
+- 编辑时保留原文章的阅读、点赞、收藏、评论和热度数据。
+
+新增用户侧入口：
+
+- `/posts/:postId/edit`
+- 文章卡片上作者本人可看到“编辑”按钮。
+- 文章详情页作者本人可看到“编辑文章”按钮。
+- 发布页复用为编辑页，支持读取原文、继续 Markdown 预览、上传封面和保存修改。
+
+### 14.4 我的学习与文章卡片 UI
+
+用户侧 `/library` 已调整为学习看板布局：
+
+- 顶部展示继续阅读入口。
+- 收藏、最近读过、复习卡片使用仪表盘式数据块。
+- 新增学习看板区，展示最新收藏、最近阅读和已保存内容的互动情况。
+- 复习卡片区域继续使用 Markdown 渲染。
+
+文章卡片 `KnowledgeCard` 已优化为内容社区卡片：
+
+- 封面高度统一为 200px，移动端为 180px。
+- 标题限制 2 行，摘要限制 2 行。
+- 卡片顶部只保留主题和语言，减少小标签挤压。
+- 底部统一为互动数据和阅读按钮区域。
+- 作者本人可直接从卡片进入编辑页。
+
+### 14.5 本轮验证
+
+已执行并通过：
+
+```text
+./scripts/build_with_proxy.sh
+./scripts/import_local_db.sh
+npm --workspace @studyforge/knowledge-web run typecheck
+npm --workspace @studyforge/knowledge-web run build
+```
+
+接口验证：
+
+- `GET /api/v1/health` 成功。
+- `POST /api/v1/auth/login` 使用 `chen_jiayi / StudyForge@2026` 成功。
+- `GET /api/v1/users/me/profile` 返回真实邮箱、等级、好友数。
+- `GET /api/v1/users/me/friends` 返回 3 位真实好友：`zhao_yiran`、`wang_yu`、`emma_clark`。
+- `GET /api/v1/users/me/friend-requests/incoming?status=PENDING` 返回来自 `noah_kim` 的待处理申请。
+- `GET /api/v1/users/5/profile` 返回 `friendStatus=FRIEND`，且非本人不返回邮箱。
+- `PUT /api/v1/posts/1` 使用作者账号更新成功。
+- `PUT /api/v1/posts/1` 使用非作者账号返回 `4030`，确认作者权限生效。
+- `http://localhost:5174/api/v1/posts/trending?languageCode=zh_CN&limit=12` 经 Vite proxy 返回 8 篇真实文章。
+
+当前服务地址：
+
+```text
+用户侧知识平台: http://localhost:5174
+后端 API:      http://localhost:8080/api/v1/health
+```
+
+## 14. 2026-05-25 AI 提示词语言跟随站点语言
+
+本轮补充 AI 语言规则：
+
+- 前端调用 AI 时将文章原文语言和用户当前站点语言分开传给后端。
+- `contentLanguageCode` 用于读取当前文章实际内容，避免中英文帖子被错误切换。
+- `promptLanguageCode` 使用用户当前站点语言，即顶部语言切换里的 `zh_CN` 或 `en_US`。
+- 后端 AI prompt 模板改为中英两套：
+  - 中文站点使用中文提示词。
+  - English 站点使用 English prompts。
+- 文章摘要、复习卡片、文章问答、AI 排版都已接入该规则。
+- AI 排版仍明确要求保留用户原文语言，不因为站点语言改变而自动翻译用户文章。
+
+涉及文件：
+
+```text
+studyforge-frontend/apps/knowledge-web/src/api/ai.ts
+studyforge-frontend/apps/knowledge-web/src/views/PostDetailView.vue
+studyforge-frontend/apps/knowledge-web/src/views/PublishView.vue
+studyforge-server/studyforge-webapi/src/main/java/com/studyforge/webapi/ai/AiController.java
+studyforge-server/studyforge-ai/src/main/java/com/studyforge/ai/service/impl/SiliconFlowAiServiceImpl.java
+studyforge-server/studyforge-ai/src/main/java/com/studyforge/ai/service/impl/LocalFallbackAiServiceImpl.java
+```
+
+验证：
+
+```text
+./scripts/build_with_proxy.sh
+npm --workspace @studyforge/knowledge-web run typecheck
+npm --workspace @studyforge/knowledge-web run build
+```
+
+当前服务已重启：
+
+```text
+用户侧知识平台: http://localhost:5174
+后端 API:      http://localhost:8080/api/v1/health
+```
+
 ### 11.5 详情页旧登录态兼容修复
 
 重新导入数据库后，浏览器本地可能仍保留旧的 `studyforge.knowledge.session`。旧 token 会导致文章详情页加载互动状态时返回 `4010 login has expired`。
@@ -816,3 +976,246 @@ npm run build
 - `npm run typecheck` 通过。
 - `npm run build` 通过。
 - 已重启后端 API、用户侧知识平台和控制台。
+
+### 11.7 2026-05-25 AI 输出与互动内容 Markdown 渲染
+
+本轮补齐用户侧知识平台中容易出现 Markdown 的文本展示场景。
+
+已调整：
+
+- 文章详情页的 AI 摘要使用安全 Markdown 渲染。
+- 文章详情页的复习卡片生成结果使用安全 Markdown 渲染。
+- 我的学习页中已保存的复习卡片使用安全 Markdown 渲染。
+- 文章评论支持 Markdown 渲染。
+- 求助详情与回答支持 Markdown 渲染。
+- 这些区域继续使用 `DOMPurify + markdown-it` 处理输出，链接默认新窗口打开。
+- 卡片、评论和求助区域使用更紧凑的 Markdown 样式，避免正文级标题和代码块撑开布局。
+
+验证：
+
+- `npm --workspace @studyforge/knowledge-web run typecheck` 通过。
+- `npm --workspace @studyforge/knowledge-web run build` 通过。
+
+## 12. 2026-05-25 个人主页、关注与收藏夹增强记录
+
+本轮继续保持：
+
+```text
+Vue 前端
+    ↓ Axios
+Spring MVC Controller 返回 JSON
+    ↓
+Service
+    ↓
+MyBatis Mapper
+    ↓
+本机 MySQL / MariaDB
+```
+
+### 12.1 数据库与种子数据
+
+新增或增强：
+
+- `users` 增加展示名、签名、头像、主页背景、社区等级、经验值和每日登录奖励日期。
+- 新增 `user_follows`，支持关注、粉丝和互相关注好友统计。
+- 新增 `user_experience_logs`，记录每日登录经验。
+- 新增 `favorite_collections` 和 `favorite_collection_items`，支持收藏夹与收藏夹内文章。
+- 种子数据已补齐用户头像、本地主页背景、用户签名、关注关系、收藏夹和收藏夹条目。
+- 当前本机导入后表数量为 22。
+
+### 12.2 后端接口
+
+新增接口：
+
+- `GET /api/v1/users/me/profile`
+- `PUT /api/v1/users/me/profile`
+- `GET /api/v1/users/{userId}/profile`
+- `GET /api/v1/users/{userId}/posts`
+- `POST /api/v1/users/{userId}/follow`
+- `DELETE /api/v1/users/{userId}/follow`
+- `GET /api/v1/users/{userId}/followers`
+- `GET /api/v1/users/{userId}/following`
+- `GET /api/v1/collections/me`
+- `POST /api/v1/collections`
+- `GET /api/v1/collections/{collectionId}/posts`
+- `POST /api/v1/collections/{collectionId}/posts/{postId}`
+- `DELETE /api/v1/collections/{collectionId}/posts/{postId}`
+
+行为说明：
+
+- 登录成功后，如果当天还没有领取登录经验，会增加 15 经验并更新等级。
+- 个人主页会返回发帖数、收藏数、浏览历史数、粉丝数、关注数、互关好友数、评论数和收到点赞数。
+- 收藏按钮会把文章写入“默认收藏”收藏夹；取消收藏会同步移除该文章在个人收藏夹中的条目。
+- 文章摘要数据现在带作者 ID、作者展示名和头像 URL，知识流卡片可以跳到作者主页。
+
+### 12.3 用户侧 Vue
+
+新增页面：
+
+- `/me`：当前登录用户个人主页。
+- `/users/:userId`：公开用户主页。
+- `/favorites`：收藏夹管理页。
+
+新增前端能力：
+
+- 顶部导航新增“我的主页”。
+- 登录用户区域可进入个人主页。
+- 个人主页包含头像、背景、签名、等级、经验进度、好友 / 关注 / 粉丝 / 收藏 / 历史浏览统计。
+- 个人主页包含“动态 / 投稿 / 好友”分栏。
+- 支持关注和取消关注其他用户。
+- 收藏夹页支持查看收藏夹、新建收藏夹、查看收藏夹内文章、从收藏夹移出文章。
+- 知识流文章卡片显示作者信息并支持跳转作者主页。
+- 文章详情页的作者信息支持跳转个人主页。
+
+### 12.4 本轮验证
+
+已执行并通过：
+
+```text
+./scripts/build_with_proxy.sh
+./scripts/import_local_db.sh
+npm --workspace @studyforge/knowledge-web run typecheck
+npm --workspace @studyforge/knowledge-web run build
+```
+
+接口验证：
+
+- `POST /api/v1/auth/login` 使用 `chen_jiayi / StudyForge@2026` 登录成功，并触发每日登录经验。
+- `GET /api/v1/users/me/profile` 返回个人主页统计、等级和经验进度。
+- `GET /api/v1/users/1/profile` 可公开读取用户主页。
+- `GET /api/v1/users/1/posts` 返回该用户发布的文章，并包含作者信息。
+- `GET /api/v1/collections/me` 返回当前用户收藏夹。
+- `GET /api/v1/collections/{collectionId}/posts` 返回收藏夹内文章。
+- `POST /api/v1/users/4/follow` 和 `DELETE /api/v1/users/4/follow` 验证通过。
+
+当前服务地址：
+
+```text
+用户侧知识平台: http://localhost:5174
+后端 API:      http://localhost:8080/api/v1/health
+```
+
+## 13. 2026-05-25 社区管理与举报审核增强记录
+
+本轮继续保持：
+
+```text
+Vue 前端
+    ↓ Axios
+Spring MVC Controller 返回 JSON
+    ↓
+Service
+    ↓
+MyBatis Mapper
+    ↓
+本机 MySQL / MariaDB
+```
+
+### 13.1 后端接口
+
+新增社区管理服务：
+
+- `CommunityAdminService`
+- `AdminCommunityMapper`
+- `AdminCommunityMapper.xml`
+
+新增管理端接口：
+
+- `GET /api/v1/admin/community/overview`
+- `GET /api/v1/admin/community/posts`
+- `GET /api/v1/admin/community/posts/{postId}`
+- `POST /api/v1/admin/community/posts/{postId}/featured`
+- `POST /api/v1/admin/community/posts/{postId}/status`
+- `GET /api/v1/admin/community/reports`
+- `POST /api/v1/admin/community/reports/{reportId}/review`
+- `GET /api/v1/admin/community/users`
+- `POST /api/v1/admin/community/users/{userId}/status`
+
+新增用户侧举报接口：
+
+- `POST /api/v1/posts/{postId}/reports`
+
+接口能力：
+
+- 用户可提交帖子举报，写入 `reports`。
+- 管理员可查看举报队列，并选择下架、驳回或恢复帖子。
+- 管理员可置顶或取消置顶帖子。
+- 管理员可发布、下架、恢复帖子。
+- 管理员可查看所有账号信息，包括邮箱、角色、状态、等级、经验、声望、发帖数、评论数、收藏数和粉丝数。
+- 管理员可将普通用户恢复为正常、锁定或停用。
+- 管理端操作会写入 `admin_audit_logs`。
+
+### 13.2 数据库与种子数据
+
+本轮增强：
+
+- `posts.featured` 已作为置顶标记使用。
+- `reports` 种子数据增加 3 条真实审核场景，其中 2 条待处理、1 条已驳回。
+- `sql/001_schema.sql` 增加兼容已有本机表的 `featured` 与 `reputation_score` 补列语句。
+
+### 13.3 管理端 Vue
+
+目录：
+
+```text
+studyforge-frontend/apps/portal-web
+```
+
+新增：
+
+- `/community`：社区管理页面。
+- `src/api/community.ts`：管理端社区接口封装。
+- `src/components/MarkdownRenderer.vue` 与 `src/utils/markdown.ts`：管理端安全 Markdown 渲染。
+
+页面能力：
+
+- 运营看板读取真实社区概览数据。
+- 侧边栏新增“社区管理”入口。
+- 社区管理页分为“举报审核 / 帖子管理 / 账号信息”三块。
+- 举报审核可以处理待审举报，并触发下架或驳回。
+- 帖子管理可以搜索、筛选、预览 Markdown、置顶、下架和恢复发布。
+- 账号信息可以查看所有账号的真实社区数据，并处理普通账号状态。
+- 管理端文章详情页改为调用 admin 接口，可渲染 Markdown，并提供置顶、下架和恢复发布操作。
+
+### 13.4 用户侧 Vue
+
+用户侧文章详情页新增：
+
+- “举报文章”表单。
+- 提交后调用 `POST /api/v1/posts/{postId}/reports`。
+- 举报进入管理端审核队列。
+
+### 13.5 本轮验证
+
+已执行并通过：
+
+```text
+./scripts/build_with_proxy.sh
+./scripts/import_local_db.sh
+npm --workspace @studyforge/portal-web run typecheck
+npm --workspace @studyforge/knowledge-web run typecheck
+npm --workspace @studyforge/portal-web run build
+npm --workspace @studyforge/knowledge-web run build
+```
+
+接口验证：
+
+- `POST /api/v1/auth/login` 使用 `ops_admin / AdminForge@2026` 登录成功。
+- `GET /api/v1/admin/community/overview` 成功返回社区概览。
+- `GET /api/v1/admin/community/posts?status=ALL&limit=5` 成功返回管理端帖子列表。
+- `POST /api/v1/admin/community/posts/{postId}/featured` 成功置顶文章。
+- `POST /api/v1/admin/community/posts/{postId}/status` 成功更新文章状态。
+- `GET /api/v1/admin/community/reports?status=ALL&limit=10` 成功返回举报列表。
+- `POST /api/v1/posts/{postId}/reports` 使用普通用户登录后提交举报成功。
+- `POST /api/v1/admin/community/reports/{reportId}/review` 选择 `TAKE_DOWN` 后成功把文章置为 `ARCHIVED`。
+- 验证完成后通过文章状态接口恢复为 `PUBLISHED`。
+- `GET /api/v1/admin/community/users?status=ALL&limit=10` 成功返回账号列表。
+- `POST /api/v1/admin/community/users/{userId}/status` 成功验证账号状态接口。
+
+当前服务地址：
+
+```text
+用户侧知识平台: http://localhost:5174
+控制台:         http://localhost:5173
+后端 API:      http://localhost:8080/api/v1/health
+```

@@ -9,6 +9,8 @@ TRUNCATE TABLE voice_records;
 TRUNCATE TABLE ai_logs;
 TRUNCATE TABLE reports;
 TRUNCATE TABLE post_view_history;
+TRUNCATE TABLE favorite_collection_items;
+TRUNCATE TABLE favorite_collections;
 TRUNCATE TABLE post_favorites;
 TRUNCATE TABLE post_likes;
 TRUNCATE TABLE comments;
@@ -17,6 +19,11 @@ TRUNCATE TABLE post_i18n;
 TRUNCATE TABLE posts;
 TRUNCATE TABLE user_tokens;
 TRUNCATE TABLE integration_settings;
+TRUNCATE TABLE user_experience_logs;
+TRUNCATE TABLE friend_messages;
+TRUNCATE TABLE friendships;
+TRUNCATE TABLE friend_requests;
+TRUNCATE TABLE user_follows;
 TRUNCATE TABLE users;
 TRUNCATE TABLE category_i18n;
 TRUNCATE TABLE categories;
@@ -57,21 +64,110 @@ JOIN (
 ) t ON t.category_code = c.category_code
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
-INSERT INTO users (username, email, password_hash, role, status, reputation_score)
+INSERT INTO users (
+    username,
+    display_name,
+    email,
+    password_hash,
+    role,
+    status,
+    bio,
+    avatar_url,
+    banner_url,
+    community_level,
+    experience_points,
+    last_login_reward_date,
+    reputation_score
+)
 VALUES
-    ('chen_jiayi', 'jiayi.chen@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', 860),
-    ('li_minghao', 'minghao.li@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', 740),
-    ('zhao_yiran', 'yiran.zhao@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', 690),
-    ('wang_yu', 'yu.wang@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', 610),
-    ('emma_clark', 'emma.clark@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', 780),
-    ('noah_kim', 'noah.kim@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', 530),
-    ('ops_admin', 'ops.admin@studyforge.ai', 'sha256:d120c09f9b058fd4177b5a79917dc5a67769b9b0d09ccaaf414a30e06d63898b', 'ADMIN', 'ACTIVE', 1200)
+    ('chen_jiayi', '陈嘉仪', 'jiayi.chen@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', '偏前端和学习方法，喜欢把长文整理成可以复习的卡片。', '/avatars/chen-jiayi.svg', '/banners/study-lab.svg', 14, 1375, DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY), 860),
+    ('li_minghao', '李明昊', 'minghao.li@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', '关注内容运营、知识库治理和团队协作流程。', '/avatars/li-minghao.svg', '/banners/content-ops.svg', 12, 1160, DATE_SUB(CURRENT_DATE, INTERVAL 2 DAY), 740),
+    ('zhao_yiran', '赵一然', 'yiran.zhao@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', '长期记录复盘、计划和主动回忆练习。', '/avatars/zhao-yiran.svg', '/banners/review-system.svg', 11, 1045, DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY), 690),
+    ('wang_yu', '王屿', 'yu.wang@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', '后端开发，喜欢把事务边界和接口契约写清楚。', '/avatars/wang-yu.svg', '/banners/backend-notes.svg', 10, 960, DATE_SUB(CURRENT_DATE, INTERVAL 3 DAY), 610),
+    ('emma_clark', 'Emma Clark', 'emma.clark@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', 'Writes about practical product UX, Markdown tools, and learning workflows.', '/avatars/emma-clark.svg', '/banners/editor-tools.svg', 13, 1260, DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY), 780),
+    ('noah_kim', 'Noah Kim', 'noah.kim@studyforge.ai', 'sha256:aa5969061c710df50f3b9724264a64b8ab3cd41c9b3f62f73f19bf8cb444d9a0', 'USER', 'ACTIVE', 'Keeps weekly review logs for interviews, systems thinking, and writing practice.', '/avatars/noah-kim.svg', '/banners/weekly-review.svg', 9, 820, DATE_SUB(CURRENT_DATE, INTERVAL 4 DAY), 530),
+    ('ops_admin', 'StudyForge 运营', 'ops.admin@studyforge.ai', 'sha256:d120c09f9b058fd4177b5a79917dc5a67769b9b0d09ccaaf414a30e06d63898b', 'ADMIN', 'ACTIVE', '维护内容质量、AI 配置和社区运行状态。', '/avatars/ops-admin.svg', '/banners/system-console.svg', 18, 1710, DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY), 1200)
 ON DUPLICATE KEY UPDATE
+    display_name = VALUES(display_name),
     email = VALUES(email),
     password_hash = VALUES(password_hash),
     role = VALUES(role),
     status = VALUES(status),
+    bio = VALUES(bio),
+    avatar_url = VALUES(avatar_url),
+    banner_url = VALUES(banner_url),
+    community_level = VALUES(community_level),
+    experience_points = VALUES(experience_points),
+    last_login_reward_date = VALUES(last_login_reward_date),
     reputation_score = VALUES(reputation_score);
+
+INSERT INTO user_follows (follower_id, following_id, status, created_time)
+SELECT f.user_id, t.user_id, 'ACTIVE', NOW() - INTERVAL 18 DAY
+FROM users f JOIN users t ON t.username = 'chen_jiayi'
+WHERE f.username IN ('li_minghao', 'zhao_yiran', 'emma_clark')
+UNION ALL SELECT f.user_id, t.user_id, 'ACTIVE', NOW() - INTERVAL 16 DAY FROM users f JOIN users t ON t.username = 'emma_clark' WHERE f.username IN ('chen_jiayi', 'noah_kim')
+UNION ALL SELECT f.user_id, t.user_id, 'ACTIVE', NOW() - INTERVAL 14 DAY FROM users f JOIN users t ON t.username = 'zhao_yiran' WHERE f.username IN ('chen_jiayi', 'wang_yu')
+UNION ALL SELECT f.user_id, t.user_id, 'ACTIVE', NOW() - INTERVAL 12 DAY FROM users f JOIN users t ON t.username = 'li_minghao' WHERE f.username IN ('chen_jiayi', 'ops_admin')
+UNION ALL SELECT f.user_id, t.user_id, 'ACTIVE', NOW() - INTERVAL 10 DAY FROM users f JOIN users t ON t.username = 'wang_yu' WHERE f.username IN ('li_minghao', 'zhao_yiran')
+UNION ALL SELECT f.user_id, t.user_id, 'ACTIVE', NOW() - INTERVAL 8 DAY FROM users f JOIN users t ON t.username = 'noah_kim' WHERE f.username IN ('emma_clark', 'chen_jiayi')
+UNION ALL SELECT f.user_id, t.user_id, 'ACTIVE', NOW() - INTERVAL 7 DAY FROM users f JOIN users t ON t.username = 'ops_admin' WHERE f.username IN ('chen_jiayi', 'li_minghao');
+
+INSERT INTO friend_requests (requester_id, addressee_id, message, status, processed_time, created_time)
+SELECT requester.user_id, addressee.user_id, '最近都在整理 Markdown 编辑器和复习卡片，想加好友后继续交流。', 'ACCEPTED', NOW() - INTERVAL 15 DAY, NOW() - INTERVAL 16 DAY
+FROM users requester JOIN users addressee ON addressee.username = 'chen_jiayi'
+WHERE requester.username = 'emma_clark'
+UNION ALL
+SELECT requester.user_id, addressee.user_id, '我在看你写的 Service 层文章，后面想请教事务边界。', 'ACCEPTED', NOW() - INTERVAL 11 DAY, NOW() - INTERVAL 12 DAY
+FROM users requester JOIN users addressee ON addressee.username = 'wang_yu'
+WHERE requester.username = 'chen_jiayi'
+UNION ALL
+SELECT requester.user_id, addressee.user_id, '想一起完善学习复盘模板，可以加个好友吗？', 'ACCEPTED', NOW() - INTERVAL 8 DAY, NOW() - INTERVAL 9 DAY
+FROM users requester JOIN users addressee ON addressee.username = 'zhao_yiran'
+WHERE requester.username = 'chen_jiayi'
+UNION ALL
+SELECT requester.user_id, addressee.user_id, '看到你也在整理技术面试学习记录，想交流一下每周复盘方式。', 'PENDING', NULL, NOW() - INTERVAL 4 HOUR
+FROM users requester JOIN users addressee ON addressee.username = 'chen_jiayi'
+WHERE requester.username = 'noah_kim'
+UNION ALL
+SELECT requester.user_id, addressee.user_id, '运营后台这篇写得很实用，想保持联系。', 'PENDING', NULL, NOW() - INTERVAL 2 HOUR
+FROM users requester JOIN users addressee ON addressee.username = 'li_minghao'
+WHERE requester.username = 'chen_jiayi';
+
+INSERT INTO friendships (user_low_id, user_high_id, status, created_time)
+SELECT LEAST(a.user_id, b.user_id), GREATEST(a.user_id, b.user_id), 'ACTIVE', NOW() - INTERVAL 15 DAY
+FROM users a JOIN users b ON b.username = 'chen_jiayi'
+WHERE a.username = 'emma_clark'
+UNION ALL
+SELECT LEAST(a.user_id, b.user_id), GREATEST(a.user_id, b.user_id), 'ACTIVE', NOW() - INTERVAL 11 DAY
+FROM users a JOIN users b ON b.username = 'wang_yu'
+WHERE a.username = 'chen_jiayi'
+UNION ALL
+SELECT LEAST(a.user_id, b.user_id), GREATEST(a.user_id, b.user_id), 'ACTIVE', NOW() - INTERVAL 8 DAY
+FROM users a JOIN users b ON b.username = 'zhao_yiran'
+WHERE a.username = 'chen_jiayi';
+
+INSERT INTO friend_messages (sender_id, receiver_id, content, read_flag, created_time)
+SELECT sender.user_id, receiver.user_id, '我把 Markdown 编辑器的图片上传流程又整理了一版，你有空可以看看。', 1, NOW() - INTERVAL 3 DAY
+FROM users sender JOIN users receiver ON receiver.username = 'chen_jiayi'
+WHERE sender.username = 'emma_clark'
+UNION ALL
+SELECT sender.user_id, receiver.user_id, '看到了，保留 Markdown 源文这个决定很稳，我准备按这个思路继续做预览。', 1, NOW() - INTERVAL 3 DAY + INTERVAL 30 MINUTE
+FROM users sender JOIN users receiver ON receiver.username = 'emma_clark'
+WHERE sender.username = 'chen_jiayi'
+UNION ALL
+SELECT sender.user_id, receiver.user_id, '你那篇复习卡片文章里，问题设计的部分很适合放进我的周复盘。', 0, NOW() - INTERVAL 1 DAY
+FROM users sender JOIN users receiver ON receiver.username = 'zhao_yiran'
+WHERE sender.username = 'chen_jiayi';
+
+INSERT INTO user_experience_logs (user_id, action_type, experience_delta, source_id, created_date, created_time)
+SELECT user_id, 'DAILY_LOGIN', 15, NULL, DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY), NOW() - INTERVAL 1 DAY
+FROM users
+WHERE username IN ('chen_jiayi', 'zhao_yiran', 'emma_clark', 'ops_admin')
+UNION ALL
+SELECT user_id, 'PUBLISH_POST', 45, NULL, DATE_SUB(CURRENT_DATE, INTERVAL 3 DAY), NOW() - INTERVAL 3 DAY
+FROM users
+WHERE username IN ('chen_jiayi', 'emma_clark', 'zhao_yiran', 'li_minghao', 'wang_yu', 'noah_kim')
+ON DUPLICATE KEY UPDATE experience_delta = VALUES(experience_delta);
 
 INSERT INTO integration_settings (setting_key, setting_value, secret_flag, updated_by)
 SELECT 'ai.base_url', 'https://api.siliconflow.cn/v1', 0, u.user_id FROM users u WHERE u.username = 'ops_admin'
@@ -674,6 +770,46 @@ UNION ALL SELECT @post_interview_log, u.user_id FROM users u WHERE u.username IN
 UNION ALL SELECT @post_weekly_review, u.user_id FROM users u WHERE u.username IN ('noah_kim', 'zhao_yiran')
 UNION ALL SELECT @post_service_layer, u.user_id FROM users u WHERE u.username IN ('chen_jiayi', 'wang_yu', 'ops_admin');
 
+INSERT INTO favorite_collections (user_id, name, description, visibility, sort_no)
+SELECT user_id, '默认收藏', '临时保存，稍后再整理。', 'PRIVATE', 0
+FROM users
+UNION ALL
+SELECT user_id, '前后端项目', 'Vue、Spring MVC、MyBatis 和工程实践文章。', 'PUBLIC', 10
+FROM users
+WHERE username IN ('chen_jiayi', 'wang_yu', 'emma_clark', 'ops_admin')
+UNION ALL
+SELECT user_id, '学习复盘', '适合转成复习卡片和周计划的内容。', 'PUBLIC', 20
+FROM users
+WHERE username IN ('chen_jiayi', 'zhao_yiran', 'noah_kim')
+UNION ALL
+SELECT user_id, '社区运营', '内容治理、审核和知识社区运营资料。', 'PUBLIC', 30
+FROM users
+WHERE username IN ('li_minghao', 'ops_admin')
+UNION ALL
+SELECT user_id, '职业成长', '面试、工作记录和长期能力建设。', 'PUBLIC', 40
+FROM users
+WHERE username IN ('emma_clark', 'noah_kim');
+
+INSERT INTO favorite_collection_items (collection_id, post_id, user_id, created_time)
+SELECT fc.collection_id, @post_markdown_composer, fc.user_id, NOW() - INTERVAL 9 DAY
+FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id
+WHERE u.username = 'chen_jiayi' AND fc.name = '前后端项目'
+UNION ALL SELECT fc.collection_id, @post_service_layer, fc.user_id, NOW() - INTERVAL 8 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'chen_jiayi' AND fc.name = '前后端项目'
+UNION ALL SELECT fc.collection_id, @post_review_cards, fc.user_id, NOW() - INTERVAL 7 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'chen_jiayi' AND fc.name = '学习复盘'
+UNION ALL SELECT fc.collection_id, @post_interview_log, fc.user_id, NOW() - INTERVAL 6 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'chen_jiayi' AND fc.name = '学习复盘'
+UNION ALL SELECT fc.collection_id, @post_content_ops, fc.user_id, NOW() - INTERVAL 5 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'li_minghao' AND fc.name = '社区运营'
+UNION ALL SELECT fc.collection_id, @post_vue_state, fc.user_id, NOW() - INTERVAL 4 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'li_minghao' AND fc.name = '默认收藏'
+UNION ALL SELECT fc.collection_id, @post_cashflow, fc.user_id, NOW() - INTERVAL 3 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'zhao_yiran' AND fc.name = '学习复盘'
+UNION ALL SELECT fc.collection_id, @post_weekly_review, fc.user_id, NOW() - INTERVAL 2 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'zhao_yiran' AND fc.name = '学习复盘'
+UNION ALL SELECT fc.collection_id, @post_review_cards, fc.user_id, NOW() - INTERVAL 2 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'wang_yu' AND fc.name = '默认收藏'
+UNION ALL SELECT fc.collection_id, @post_service_layer, fc.user_id, NOW() - INTERVAL 1 DAY FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'wang_yu' AND fc.name = '前后端项目'
+UNION ALL SELECT fc.collection_id, @post_vue_state, fc.user_id, NOW() - INTERVAL 12 HOUR FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'emma_clark' AND fc.name = '前后端项目'
+UNION ALL SELECT fc.collection_id, @post_interview_log, fc.user_id, NOW() - INTERVAL 10 HOUR FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'emma_clark' AND fc.name = '职业成长'
+UNION ALL SELECT fc.collection_id, @post_markdown_composer, fc.user_id, NOW() - INTERVAL 8 HOUR FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'noah_kim' AND fc.name = '默认收藏'
+UNION ALL SELECT fc.collection_id, @post_weekly_review, fc.user_id, NOW() - INTERVAL 6 HOUR FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'noah_kim' AND fc.name = '学习复盘'
+UNION ALL SELECT fc.collection_id, @post_service_layer, fc.user_id, NOW() - INTERVAL 5 HOUR FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'ops_admin' AND fc.name = '前后端项目'
+UNION ALL SELECT fc.collection_id, @post_content_ops, fc.user_id, NOW() - INTERVAL 4 HOUR FROM favorite_collections fc JOIN users u ON u.user_id = fc.user_id WHERE u.username = 'ops_admin' AND fc.name = '社区运营';
+
 INSERT INTO post_view_history (post_id, user_id, view_time)
 SELECT @post_vue_state, u.user_id, NOW() - INTERVAL 7 HOUR FROM users u WHERE u.username = 'li_minghao'
 UNION ALL SELECT @post_markdown_composer, u.user_id, NOW() - INTERVAL 6 HOUR FROM users u WHERE u.username = 'chen_jiayi'
@@ -691,6 +827,54 @@ LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM post_favorites GROUP BY post_id)
 SET p.comment_count = COALESCE(c.cnt, 0),
     p.like_count = COALESCE(l.cnt, 0),
     p.favorite_count = COALESCE(f.cnt, 0);
+
+INSERT INTO reports (
+    post_id,
+    reporter_id,
+    reason,
+    status,
+    ai_risk_level,
+    ai_suggestion,
+    processed_by,
+    processed_time,
+    created_time
+)
+SELECT @post_content_ops,
+       reporter.user_id,
+       '文章里提到的运营指标比较绝对，担心新用户会把它当成固定承诺，希望管理员确认表达是否需要调整。',
+       'PENDING',
+       'MEDIUM',
+       '建议核对正文中的指标描述。若属于经验分享，可以保留；若像平台承诺，建议要求作者改写。',
+       NULL,
+       NULL,
+       NOW() - INTERVAL 5 HOUR
+FROM users reporter
+WHERE reporter.username = 'wang_yu'
+UNION ALL
+SELECT @post_cashflow,
+       reporter.user_id,
+       '这篇现金流文章有不少个人理财建议，希望补充风险提示，避免读者直接照搬。',
+       'PENDING',
+       'MEDIUM',
+       '建议审核是否包含明确收益承诺。若没有违规，可以保留并提示作者补充免责声明。',
+       NULL,
+       NULL,
+       NOW() - INTERVAL 3 HOUR
+FROM users reporter
+WHERE reporter.username = 'emma_clark'
+UNION ALL
+SELECT @post_markdown_composer,
+       reporter.user_id,
+       '我以为示例里的编辑器链接会跳到外部广告，复核后发现只是产品工具说明。',
+       'REJECTED',
+       'LOW',
+       '举报理由风险较低，正文未发现广告导流。建议驳回并保留文章。',
+       admin.user_id,
+       NOW() - INTERVAL 1 DAY,
+       NOW() - INTERVAL 2 DAY
+FROM users reporter
+JOIN users admin ON admin.username = 'ops_admin'
+WHERE reporter.username = 'li_minghao';
 
 INSERT INTO help_requests (user_id, title, description, category_id, status, reward_points)
 SELECT u.user_id,

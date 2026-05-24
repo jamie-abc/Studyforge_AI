@@ -11,6 +11,8 @@ import com.studyforge.content.mapper.PostMapper;
 import com.studyforge.content.service.PostQueryService;
 import com.studyforge.content.vo.PostDetailVO;
 import com.studyforge.content.vo.PostSummaryVO;
+import com.studyforge.system.entity.User;
+import com.studyforge.system.mapper.UserMapper;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
@@ -23,11 +25,13 @@ public class PostQueryServiceImpl implements PostQueryService {
     private final PostMapper postMapper;
     private final PostI18nMapper postI18nMapper;
     private final CategoryMapper categoryMapper;
+    private final UserMapper userMapper;
 
-    public PostQueryServiceImpl(PostMapper postMapper, PostI18nMapper postI18nMapper, CategoryMapper categoryMapper) {
+    public PostQueryServiceImpl(PostMapper postMapper, PostI18nMapper postI18nMapper, CategoryMapper categoryMapper, UserMapper userMapper) {
         this.postMapper = postMapper;
         this.postI18nMapper = postI18nMapper;
         this.categoryMapper = categoryMapper;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -43,9 +47,12 @@ public class PostQueryServiceImpl implements PostQueryService {
         }
 
         Category category = categoryMapper.selectById(post.getCategoryId());
+        User author = userMapper.selectById(post.getAuthorId());
         return new PostDetailVO(
                 post.getPostId(),
                 post.getAuthorId(),
+                authorName(author, post.getAuthorId()),
+                author == null ? "" : value(author.getAvatarUrl()),
                 content.getTitle(),
                 content.getSummary(),
                 content.getContent(),
@@ -83,9 +90,29 @@ public class PostQueryServiceImpl implements PostQueryService {
     }
 
     @Override
+    public List<PostSummaryVO> listByAuthor(Long authorId, String languageCode, int limit) {
+        int normalizedLimit = normalizeLimit(limit, 30);
+        return postMapper.selectPublishedByAuthor(authorId, normalizedLimit)
+                .stream()
+                .map(post -> toSummary(post, normalizeLanguage(languageCode)))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
     public List<PostSummaryVO> listFavorites(Long userId, String languageCode, int limit) {
         int normalizedLimit = normalizeLimit(limit, 30);
         return postMapper.selectFavoritesByUser(userId, normalizedLimit)
+                .stream()
+                .map(post -> toSummary(post, normalizeLanguage(languageCode)))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
+    public List<PostSummaryVO> listFavoriteCollection(Long userId, Long collectionId, String languageCode, int limit) {
+        int normalizedLimit = normalizeLimit(limit, 30);
+        return postMapper.selectFavoriteCollectionByUser(userId, collectionId, normalizedLimit)
                 .stream()
                 .map(post -> toSummary(post, normalizeLanguage(languageCode)))
                 .filter(Objects::nonNull)
@@ -119,6 +146,9 @@ public class PostQueryServiceImpl implements PostQueryService {
 
         return new PostSummaryVO(
                 post.getPostId(),
+                post.getAuthorId(),
+                authorName(userMapper.selectById(post.getAuthorId()), post.getAuthorId()),
+                authorAvatar(post.getAuthorId()),
                 content.getTitle(),
                 content.getSummary(),
                 content.getLanguageCode(),
@@ -130,6 +160,22 @@ public class PostQueryServiceImpl implements PostQueryService {
                 safeInt(post.getViewCount()),
                 toDouble(post.getHotScore())
         );
+    }
+
+    private String authorName(User author, Long authorId) {
+        if (author == null) {
+            return "#" + authorId;
+        }
+        return author.getDisplayName() == null || author.getDisplayName().isBlank() ? author.getUsername() : author.getDisplayName();
+    }
+
+    private String authorAvatar(Long authorId) {
+        User author = userMapper.selectById(authorId);
+        return author == null ? "" : value(author.getAvatarUrl());
+    }
+
+    private String value(String value) {
+        return value == null ? "" : value;
     }
 
     private String categoryCode(Long categoryId) {

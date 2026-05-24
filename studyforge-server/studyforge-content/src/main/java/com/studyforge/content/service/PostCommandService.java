@@ -6,4 +6,6 @@ public interface PostCommandService {
     Long create(CreatePostRequest request);
 
     Long create(Long authorId, CreatePostRequest request);
+
+    Long update(Long authorId, Long postId, CreatePostRequest request);
 }

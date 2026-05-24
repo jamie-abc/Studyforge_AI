@@ -1,9 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '@/views/HomeView.vue';
+import AccountSettingsView from '@/views/AccountSettingsView.vue';
+import FavoritesView from '@/views/FavoritesView.vue';
+import FriendsView from '@/views/FriendsView.vue';
 import LandingView from '@/views/LandingView.vue';
 import LibraryView from '@/views/LibraryView.vue';
 import LoginView from '@/views/LoginView.vue';
 import PostDetailView from '@/views/PostDetailView.vue';
+import ProfileView from '@/views/ProfileView.vue';
 import PublishView from '@/views/PublishView.vue';
 import HelpView from '@/views/HelpView.vue';
 
@@ -26,6 +30,11 @@ export const router = createRouter({
       component: PostDetailView
     },
     {
+      path: '/posts/:postId/edit',
+      name: 'post-edit',
+      component: PublishView
+    },
+    {
       path: '/publish',
       name: 'publish',
       component: PublishView
@@ -39,6 +48,31 @@ export const router = createRouter({
       path: '/library',
       name: 'library',
       component: LibraryView
+    },
+    {
+      path: '/favorites',
+      name: 'favorites',
+      component: FavoritesView
+    },
+    {
+      path: '/friends',
+      name: 'friends',
+      component: FriendsView
+    },
+    {
+      path: '/account',
+      name: 'account-settings',
+      component: AccountSettingsView
+    },
+    {
+      path: '/me',
+      name: 'me',
+      component: ProfileView
+    },
+    {
+      path: '/users/:userId',
+      name: 'user-profile',
+      component: ProfileView
     },
     {
       path: '/login',

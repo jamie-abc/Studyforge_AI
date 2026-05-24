@@ -2,15 +2,23 @@ package com.studyforge.system.entity;
 
 import com.studyforge.common.enums.RoleType;
 import com.studyforge.common.enums.UserStatus;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class User {
     private Long userId;
     private String username;
+    private String displayName;
     private String email;
     private String passwordHash;
     private RoleType role;
     private UserStatus status;
+    private String bio;
+    private String avatarUrl;
+    private String bannerUrl;
+    private Integer communityLevel;
+    private Integer experiencePoints;
+    private LocalDate lastLoginRewardDate;
     private Integer reputationScore;
     private LocalDateTime createdTime;
 
@@ -28,6 +36,14 @@ public class User {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 
     public String getEmail() {
@@ -60,6 +76,54 @@ public class User {
 
     public void setStatus(UserStatus status) {
         this.status = status;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public String getBannerUrl() {
+        return bannerUrl;
+    }
+
+    public void setBannerUrl(String bannerUrl) {
+        this.bannerUrl = bannerUrl;
+    }
+
+    public Integer getCommunityLevel() {
+        return communityLevel;
+    }
+
+    public void setCommunityLevel(Integer communityLevel) {
+        this.communityLevel = communityLevel;
+    }
+
+    public Integer getExperiencePoints() {
+        return experiencePoints;
+    }
+
+    public void setExperiencePoints(Integer experiencePoints) {
+        this.experiencePoints = experiencePoints;
+    }
+
+    public LocalDate getLastLoginRewardDate() {
+        return lastLoginRewardDate;
+    }
+
+    public void setLastLoginRewardDate(LocalDate lastLoginRewardDate) {
+        this.lastLoginRewardDate = lastLoginRewardDate;
     }
 
     public Integer getReputationScore() {

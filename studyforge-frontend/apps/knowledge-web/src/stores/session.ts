@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import * as authApi from '@/api/auth';
 import { clearStoredSession, readStoredSession, writeStoredSession } from '@/stores/sessionStorage';
 import type { LoginRequest, LoginSession } from '@/types/api';
+import type { UserProfile } from '@/types/api';
 
 interface SessionState {
   initialized: boolean;
@@ -17,7 +18,9 @@ export const useSessionStore = defineStore('session', {
   }),
   getters: {
     isAuthenticated: (state) => Boolean(state.session?.accessToken),
-    username: (state) => state.session?.username || '访客'
+    username: (state) => state.session?.username || '访客',
+    displayName: (state) => state.session?.displayName || state.session?.username || '访客',
+    userId: (state) => state.session?.userId ?? null
   },
   actions: {
     hydrate() {
@@ -39,6 +42,19 @@ export const useSessionStore = defineStore('session', {
       } finally {
         this.loading = false;
       }
+    },
+    updateFromProfile(profile: UserProfile) {
+      if (!this.session) {
+        return;
+      }
+      this.session = {
+        ...this.session,
+        username: profile.username,
+        displayName: profile.displayName,
+        communityLevel: profile.communityLevel,
+        experiencePoints: profile.experiencePoints
+      };
+      writeStoredSession(this.session);
     },
     async logout() {
       try {

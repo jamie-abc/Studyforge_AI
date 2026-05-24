@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import AdminDashboardView from '@/views/AdminDashboardView.vue';
+import CommunityManageView from '@/views/CommunityManageView.vue';
 import FeedView from '@/views/FeedView.vue';
 import LoginView from '@/views/LoginView.vue';
 import PostDetailView from '@/views/PostDetailView.vue';
@@ -36,6 +37,11 @@ export const router = createRouter({
       path: '/admin',
       name: 'admin-dashboard',
       component: AdminDashboardView
+    },
+    {
+      path: '/community',
+      name: 'community-manage',
+      component: CommunityManageView
     },
     {
       path: '/settings',

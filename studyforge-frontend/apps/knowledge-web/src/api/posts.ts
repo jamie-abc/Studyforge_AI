@@ -49,6 +49,10 @@ export function createPost(payload: CreatePostRequest) {
   return unwrap<number>(http.post('/posts', payload));
 }
 
+export function updatePost(postId: number | string, payload: CreatePostRequest) {
+  return unwrap<number>(http.put(`/posts/${postId}`, payload));
+}
+
 export function getFavoritePosts(languageCode: string) {
   return unwrap<PostSummary[]>(
     http.get('/posts/me/favorites', {

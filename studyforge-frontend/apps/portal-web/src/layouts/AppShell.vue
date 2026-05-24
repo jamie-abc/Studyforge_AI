@@ -4,6 +4,7 @@ import { RouterLink, useRouter } from 'vue-router';
 import {
   BookOpen,
   Database,
+  ShieldCheck,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -50,6 +51,10 @@ async function handleLogout() {
         <RouterLink to="/admin">
           <LayoutDashboard :size="18" />
           <span>运营看板</span>
+        </RouterLink>
+        <RouterLink to="/community">
+          <ShieldCheck :size="18" />
+          <span>社区管理</span>
         </RouterLink>
         <RouterLink to="/settings">
           <Settings :size="18" />

@@ -108,6 +108,30 @@
         LIMIT #{limit}
     </select>
 
+    <select id="selectPublishedByAuthor" resultMap="PostResultMap">
+        SELECT
+        <include refid="PostColumnsWithAlias"/>
+        FROM posts p
+        WHERE p.author_id = #{authorId}
+          AND p.status = 'PUBLISHED'
+        ORDER BY p.created_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectFavoriteCollectionByUser" resultMap="PostResultMap">
+        SELECT
+        <include refid="PostColumnsWithAlias"/>
+        FROM favorite_collection_items i
+        JOIN favorite_collections fc ON fc.collection_id = i.collection_id
+        JOIN posts p ON p.post_id = i.post_id
+        WHERE i.user_id = #{userId}
+          AND i.collection_id = #{collectionId}
+          AND fc.user_id = #{userId}
+          AND p.status = 'PUBLISHED'
+        ORDER BY i.created_time DESC
+        LIMIT #{limit}
+    </select>
+
     <select id="selectHistoryByUser" resultMap="PostResultMap">
         SELECT
         <include refid="PostColumnsWithAlias"/>

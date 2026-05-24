@@ -45,11 +45,12 @@ public class AiController {
                                            @PathVariable("postId") Long postId,
                                            @RequestBody AiLanguageRequest request) {
         Long userId = authService.requireUserId(authorization);
-        String language = language(request);
-        PostDetailVO post = postQueryService.getDetail(postId, language);
-        String text = aiService.generateSummary(post.content(), language);
+        String contentLanguage = contentLanguage(request);
+        String promptLanguage = promptLanguage(request);
+        PostDetailVO post = postQueryService.getDetail(postId, contentLanguage);
+        String text = aiService.generateSummary(post.content(), promptLanguage);
         log(userId, postId, "SUMMARY", post.content(), text, 1);
-        return ApiResponse.success(new AiResultVO("SUMMARY", language, text));
+        return ApiResponse.success(new AiResultVO("SUMMARY", promptLanguage, text));
     }
 
     @PostMapping("/posts/{postId}/review-cards")
@@ -57,11 +58,12 @@ public class AiController {
                                                @PathVariable("postId") Long postId,
                                                @RequestBody AiLanguageRequest request) {
         Long userId = authService.requireUserId(authorization);
-        String language = language(request);
-        PostDetailVO post = postQueryService.getDetail(postId, language);
-        String text = aiService.generateQuiz(post.content(), language);
+        String contentLanguage = contentLanguage(request);
+        String promptLanguage = promptLanguage(request);
+        PostDetailVO post = postQueryService.getDetail(postId, contentLanguage);
+        String text = aiService.generateQuiz(post.content(), promptLanguage);
         log(userId, postId, "REVIEW_CARD", post.content(), text, 1);
-        return ApiResponse.success(new AiResultVO("REVIEW_CARD", language, text));
+        return ApiResponse.success(new AiResultVO("REVIEW_CARD", promptLanguage, text));
     }
 
     @PostMapping("/posts/{postId}/questions")
@@ -69,11 +71,12 @@ public class AiController {
                                           @PathVariable("postId") Long postId,
                                           @RequestBody AiQuestionRequest request) {
         Long userId = authService.requireUserId(authorization);
-        String language = request == null || isBlank(request.answerLanguage()) ? "zh_CN" : request.answerLanguage();
-        PostDetailVO post = postQueryService.getDetail(postId, language);
-        String text = aiService.answerQuestion(post.content(), request == null ? "" : request.question(), language);
+        String contentLanguage = request == null || isBlank(request.contentLanguageCode()) ? answerLanguage(request) : request.contentLanguageCode();
+        String promptLanguage = request == null || isBlank(request.promptLanguageCode()) ? answerLanguage(request) : request.promptLanguageCode();
+        PostDetailVO post = postQueryService.getDetail(postId, contentLanguage);
+        String text = aiService.answerQuestion(post.content(), request == null ? "" : request.question(), promptLanguage);
         log(userId, postId, "QUESTION", request == null ? "" : request.question(), text, 1);
-        return ApiResponse.success(new AiResultVO("QUESTION", language, text));
+        return ApiResponse.success(new AiResultVO("QUESTION", promptLanguage, text));
     }
 
     @PostMapping("/markdown/format")
@@ -83,14 +86,16 @@ public class AiController {
         if (request == null || isBlank(request.content())) {
             throw new BizException(ErrorCode.VALIDATION_ERROR, "content is required");
         }
-        String language = isBlank(request.languageCode()) ? "zh_CN" : request.languageCode();
+        String promptLanguage = isBlank(request.promptLanguageCode())
+                ? (isBlank(request.languageCode()) ? "zh_CN" : request.languageCode())
+                : request.promptLanguageCode();
         String source = request.content().trim();
         if (source.length() > 12000) {
             throw new BizException(ErrorCode.VALIDATION_ERROR, "content is too long");
         }
-        String text = aiService.formatMarkdown(source, language);
+        String text = aiService.formatMarkdown(source, promptLanguage);
         log(userId, null, "MARKDOWN_FORMAT", source, text, 1);
-        return ApiResponse.success(new AiResultVO("MARKDOWN_FORMAT", language, text));
+        return ApiResponse.success(new AiResultVO("MARKDOWN_FORMAT", promptLanguage, text));
     }
 
     @GetMapping("/me/review-cards")
@@ -116,8 +121,22 @@ public class AiController {
         aiLogMapper.insert(log);
     }
 
-    private String language(AiLanguageRequest request) {
+    private String contentLanguage(AiLanguageRequest request) {
+        if (request != null && !isBlank(request.contentLanguageCode())) {
+            return request.contentLanguageCode();
+        }
         return request == null || isBlank(request.languageCode()) ? "zh_CN" : request.languageCode();
+    }
+
+    private String promptLanguage(AiLanguageRequest request) {
+        if (request != null && !isBlank(request.promptLanguageCode())) {
+            return request.promptLanguageCode();
+        }
+        return request == null || isBlank(request.languageCode()) ? "zh_CN" : request.languageCode();
+    }
+
+    private String answerLanguage(AiQuestionRequest request) {
+        return request == null || isBlank(request.answerLanguage()) ? "zh_CN" : request.answerLanguage();
     }
 
     private String trim(String value, int maxLength) {
@@ -131,12 +150,15 @@ public class AiController {
         return value == null || value.isBlank();
     }
 
-    public record AiLanguageRequest(String languageCode) {
+    public record AiLanguageRequest(String languageCode, String contentLanguageCode, String promptLanguageCode) {
     }
 
-    public record AiQuestionRequest(String question, String answerLanguage) {
+    public record AiQuestionRequest(String question, String answerLanguage, String contentLanguageCode, String promptLanguageCode) {
     }
 
-    public record AiMarkdownFormatRequest(String content, String languageCode) {
+    public record AiMarkdownFormatRequest(String content,
+                                          String languageCode,
+                                          String contentLanguageCode,
+                                          String promptLanguageCode) {
     }
 }

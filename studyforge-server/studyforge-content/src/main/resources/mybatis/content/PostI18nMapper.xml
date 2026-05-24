@@ -66,4 +66,17 @@
             #{sourceType}
         )
     </insert>
+
+    <update id="updateById" parameterType="com.studyforge.content.entity.PostI18n">
+        UPDATE post_i18n
+        SET
+            language_code = #{languageCode},
+            title = #{title},
+            summary = #{summary},
+            content = #{content},
+            content_format = #{contentFormat},
+            ai_tags = #{aiTags},
+            source_type = #{sourceType}
+        WHERE id = #{id}
+    </update>
 </mapper>

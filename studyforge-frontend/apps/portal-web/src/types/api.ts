@@ -40,6 +40,72 @@ export interface PostDetail extends PostSummary {
   content: string;
 }
 
+export interface AdminOverview {
+  totalUsers: number;
+  activeUsers: number;
+  totalPosts: number;
+  publishedPosts: number;
+  archivedPosts: number;
+  featuredPosts: number;
+  pendingReports: number;
+  processedReports: number;
+}
+
+export interface AdminPost {
+  postId: number;
+  authorId: number;
+  authorName: string;
+  title: string;
+  summary: string;
+  content: string;
+  languageCode: string;
+  categoryCode: string;
+  status: 'PUBLISHED' | 'ARCHIVED' | 'REPORTED' | 'DRAFT' | string;
+  featured: boolean;
+  coverImageUrl: string | null;
+  likeCount: number;
+  favoriteCount: number;
+  commentCount: number;
+  viewCount: number;
+  hotScore: number;
+  createdTime: string | null;
+  updatedTime: string | null;
+}
+
+export interface AdminReport {
+  reportId: number;
+  postId: number;
+  postTitle: string;
+  postStatus: string;
+  reporterId: number;
+  reporterName: string;
+  reason: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | string;
+  aiRiskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | string;
+  aiSuggestion: string;
+  processedBy: number | null;
+  processedByName: string;
+  processedTime: string | null;
+  createdTime: string | null;
+}
+
+export interface AdminUser {
+  userId: number;
+  username: string;
+  displayName: string;
+  email: string;
+  role: 'USER' | 'ADMIN' | string;
+  status: 'ACTIVE' | 'DISABLED' | 'LOCKED' | string;
+  communityLevel: number;
+  experiencePoints: number;
+  reputationScore: number;
+  postCount: number;
+  commentCount: number;
+  favoriteCount: number;
+  followerCount: number;
+  createdTime: string | null;
+}
+
 export interface IntegrationSetting {
   settingKey: string;
   settingValue: string;

@@ -14,6 +14,8 @@ public interface AuthService {
 
     User requireUser(String authorization);
 
+    Long currentUserId(String authorization);
+
     Long requireUserId(String authorization);
 
     void requireAdmin(String authorization);

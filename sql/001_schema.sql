@@ -7,10 +7,17 @@ USE studyforge_ai;
 CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(50) NOT NULL,
+    display_name VARCHAR(80) NULL,
     email VARCHAR(100) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'USER',
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    bio VARCHAR(300) NULL,
+    avatar_url VARCHAR(512) NULL,
+    banner_url VARCHAR(512) NULL,
+    community_level INT UNSIGNED NOT NULL DEFAULT 1,
+    experience_points INT UNSIGNED NOT NULL DEFAULT 0,
+    last_login_reward_date DATE NULL,
     reputation_score INT NOT NULL DEFAULT 0,
     created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -18,6 +25,16 @@ CREATE TABLE IF NOT EXISTS users (
     UNIQUE KEY uk_users_email (email),
     KEY idx_users_role_status (role, status)
 ) ENGINE=InnoDB COMMENT='User account and profile';
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS display_name VARCHAR(80) NULL AFTER username,
+    ADD COLUMN IF NOT EXISTS bio VARCHAR(300) NULL AFTER status,
+    ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512) NULL AFTER bio,
+    ADD COLUMN IF NOT EXISTS banner_url VARCHAR(512) NULL AFTER avatar_url,
+    ADD COLUMN IF NOT EXISTS community_level INT UNSIGNED NOT NULL DEFAULT 1 AFTER banner_url,
+    ADD COLUMN IF NOT EXISTS experience_points INT UNSIGNED NOT NULL DEFAULT 0 AFTER community_level,
+    ADD COLUMN IF NOT EXISTS last_login_reward_date DATE NULL AFTER experience_points,
+    ADD COLUMN IF NOT EXISTS reputation_score INT NOT NULL DEFAULT 0 AFTER last_login_reward_date;
 
 CREATE TABLE IF NOT EXISTS user_tokens (
     token_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -30,6 +47,75 @@ CREATE TABLE IF NOT EXISTS user_tokens (
     KEY idx_user_tokens_user_status (user_id, status),
     CONSTRAINT fk_user_tokens_user_id FOREIGN KEY (user_id) REFERENCES users (user_id)
 ) ENGINE=InnoDB COMMENT='Access token store';
+
+CREATE TABLE IF NOT EXISTS user_follows (
+    follow_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    follower_id BIGINT UNSIGNED NOT NULL,
+    following_id BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_follows_pair (follower_id, following_id),
+    KEY idx_user_follows_following (following_id, status, created_time DESC),
+    KEY idx_user_follows_follower (follower_id, status, created_time DESC),
+    CONSTRAINT fk_user_follows_follower_id FOREIGN KEY (follower_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_follows_following_id FOREIGN KEY (following_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='User follow relationships';
+
+CREATE TABLE IF NOT EXISTS friend_requests (
+    request_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    requester_id BIGINT UNSIGNED NOT NULL,
+    addressee_id BIGINT UNSIGNED NOT NULL,
+    message VARCHAR(300) NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    processed_time DATETIME NULL,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_friend_requests_pair (requester_id, addressee_id),
+    KEY idx_friend_requests_addressee_status (addressee_id, status, created_time DESC),
+    KEY idx_friend_requests_requester_status (requester_id, status, created_time DESC),
+    CONSTRAINT fk_friend_requests_requester_id FOREIGN KEY (requester_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_friend_requests_addressee_id FOREIGN KEY (addressee_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Friend request inbox';
+
+CREATE TABLE IF NOT EXISTS friendships (
+    friendship_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    user_low_id BIGINT UNSIGNED NOT NULL,
+    user_high_id BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_friendships_pair (user_low_id, user_high_id),
+    KEY idx_friendships_low_status (user_low_id, status, created_time DESC),
+    KEY idx_friendships_high_status (user_high_id, status, created_time DESC),
+    CONSTRAINT fk_friendships_user_low_id FOREIGN KEY (user_low_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_friendships_user_high_id FOREIGN KEY (user_high_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Accepted friend relationships';
+
+CREATE TABLE IF NOT EXISTS friend_messages (
+    message_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    sender_id BIGINT UNSIGNED NOT NULL,
+    receiver_id BIGINT UNSIGNED NOT NULL,
+    content TEXT NOT NULL,
+    read_flag TINYINT(1) NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_friend_messages_pair_time (sender_id, receiver_id, created_time DESC),
+    KEY idx_friend_messages_receiver_read (receiver_id, read_flag, created_time DESC),
+    CONSTRAINT fk_friend_messages_sender_id FOREIGN KEY (sender_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_friend_messages_receiver_id FOREIGN KEY (receiver_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Messages between accepted friends';
+
+CREATE TABLE IF NOT EXISTS user_experience_logs (
+    log_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    experience_delta INT NOT NULL,
+    source_id BIGINT UNSIGNED NULL,
+    created_date DATE NOT NULL,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_experience_daily_action (user_id, action_type, created_date),
+    KEY idx_user_experience_user_time (user_id, created_time DESC),
+    CONSTRAINT fk_user_experience_logs_user_id FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Community experience changes';
 
 CREATE TABLE IF NOT EXISTS integration_settings (
     setting_key VARCHAR(80) PRIMARY KEY,
@@ -88,7 +174,8 @@ CREATE TABLE IF NOT EXISTS posts (
 ) ENGINE=InnoDB COMMENT='Post aggregate root';
 
 ALTER TABLE posts
-    ADD COLUMN IF NOT EXISTS cover_image_url VARCHAR(512) NULL AFTER status;
+    ADD COLUMN IF NOT EXISTS cover_image_url VARCHAR(512) NULL AFTER status,
+    ADD COLUMN IF NOT EXISTS featured TINYINT(1) NOT NULL DEFAULT 0 AFTER cover_image_url;
 
 CREATE TABLE IF NOT EXISTS post_i18n (
     id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -165,6 +252,34 @@ CREATE TABLE IF NOT EXISTS post_favorites (
     CONSTRAINT fk_post_favorites_post_id FOREIGN KEY (post_id) REFERENCES posts (post_id) ON DELETE CASCADE,
     CONSTRAINT fk_post_favorites_user_id FOREIGN KEY (user_id) REFERENCES users (user_id)
 ) ENGINE=InnoDB COMMENT='Post favorites';
+
+CREATE TABLE IF NOT EXISTS favorite_collections (
+    collection_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(80) NOT NULL,
+    description VARCHAR(300) NULL,
+    visibility VARCHAR(20) NOT NULL DEFAULT 'PRIVATE',
+    sort_no INT NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_favorite_collections_user_name (user_id, name),
+    KEY idx_favorite_collections_user_sort (user_id, sort_no, created_time DESC),
+    CONSTRAINT fk_favorite_collections_user_id FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='User favorite folders';
+
+CREATE TABLE IF NOT EXISTS favorite_collection_items (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    collection_id BIGINT UNSIGNED NOT NULL,
+    post_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_favorite_collection_items_collection_post (collection_id, post_id),
+    KEY idx_favorite_collection_items_user_created (user_id, created_time DESC),
+    KEY idx_favorite_collection_items_post (post_id),
+    CONSTRAINT fk_favorite_collection_items_collection_id FOREIGN KEY (collection_id) REFERENCES favorite_collections (collection_id) ON DELETE CASCADE,
+    CONSTRAINT fk_favorite_collection_items_post_id FOREIGN KEY (post_id) REFERENCES posts (post_id) ON DELETE CASCADE,
+    CONSTRAINT fk_favorite_collection_items_user_id FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Posts saved into favorite folders';
 
 CREATE TABLE IF NOT EXISTS post_view_history (
     id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,

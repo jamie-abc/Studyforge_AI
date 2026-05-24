@@ -80,6 +80,74 @@ public class PostCommandServiceImpl implements PostCommandService {
         return post.getPostId();
     }
 
+    @Override
+    @Transactional
+    public Long update(Long authorId, Long postId, CreatePostRequest request) {
+        if (authorId == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED);
+        }
+        if (postId == null) {
+            throw new BizException(ErrorCode.VALIDATION_ERROR, "postId is required");
+        }
+        if (request == null || isBlank(request.title()) || isBlank(request.content())) {
+            throw new BizException(ErrorCode.VALIDATION_ERROR, "title and content are required");
+        }
+
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "post not found");
+        }
+        if (!authorId.equals(post.getAuthorId())) {
+            throw new BizException(ErrorCode.FORBIDDEN, "only the author can edit this post");
+        }
+
+        Long categoryId = request.categoryId() == null ? post.getCategoryId() : request.categoryId();
+        if (categoryMapper.selectById(categoryId) == null) {
+            throw new BizException(ErrorCode.VALIDATION_ERROR, "category not found");
+        }
+
+        String previousLanguage = post.getOriginalLanguage();
+        String language = normalizeLanguage(request.originalLanguage());
+        post.setCategoryId(categoryId);
+        post.setOriginalLanguage(language);
+        post.setCoverImageUrl(safeCoverUrl(request.coverImageUrl()));
+        postMapper.updateById(post);
+
+        PostI18n content = postI18nMapper.selectByPostIdAndLanguage(postId, previousLanguage);
+        if (content == null) {
+            content = postI18nMapper.selectByPostIdAndLanguage(postId, language);
+        }
+        if (content == null) {
+            content = postI18nMapper.selectByPostId(postId)
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        if (content == null) {
+            content = new PostI18n();
+            content.setPostId(postId);
+            content.setLanguageCode(language);
+            content.setTitle(request.title().trim());
+            content.setSummary(summary(request));
+            content.setContent(request.content().trim());
+            content.setContentFormat("MARKDOWN");
+            content.setAiTags(null);
+            content.setSourceType("ORIGINAL");
+            postI18nMapper.insert(content);
+        } else {
+            content.setLanguageCode(language);
+            content.setTitle(request.title().trim());
+            content.setSummary(summary(request));
+            content.setContent(request.content().trim());
+            content.setContentFormat("MARKDOWN");
+            content.setSourceType("ORIGINAL");
+            postI18nMapper.updateById(content);
+        }
+
+        return postId;
+    }
+
     private String normalizeLanguage(String languageCode) {
         if (isBlank(languageCode)) {
             return DEFAULT_LANGUAGE;

@@ -10,4 +10,6 @@ public interface PostI18nMapper {
     PostI18n selectByPostIdAndLanguage(@Param("postId") Long postId, @Param("languageCode") String languageCode);
 
     int insert(PostI18n postI18n);
+
+    int updateById(PostI18n postI18n);
 }

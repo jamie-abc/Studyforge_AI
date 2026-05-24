@@ -9,12 +9,14 @@ import com.studyforge.system.dto.RegisterRequest;
 import com.studyforge.system.entity.User;
 import com.studyforge.system.entity.UserToken;
 import com.studyforge.system.mapper.UserMapper;
+import com.studyforge.system.mapper.UserExperienceMapper;
 import com.studyforge.system.mapper.UserTokenMapper;
 import com.studyforge.system.service.AuthService;
 import com.studyforge.system.vo.LoginVO;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import org.springframework.stereotype.Service;
@@ -23,12 +25,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthServiceImpl implements AuthService {
     private static final String TOKEN_PREFIX = "Bearer ";
+    private static final int DAILY_LOGIN_EXPERIENCE = 15;
 
     private final UserMapper userMapper;
+    private final UserExperienceMapper userExperienceMapper;
     private final UserTokenMapper userTokenMapper;
 
-    public AuthServiceImpl(UserMapper userMapper, UserTokenMapper userTokenMapper) {
+    public AuthServiceImpl(UserMapper userMapper, UserExperienceMapper userExperienceMapper, UserTokenMapper userTokenMapper) {
         this.userMapper = userMapper;
+        this.userExperienceMapper = userExperienceMapper;
         this.userTokenMapper = userTokenMapper;
     }
 
@@ -51,7 +56,21 @@ public class AuthServiceImpl implements AuthService {
         token.setStatus("ACTIVE");
         userTokenMapper.insert(token);
 
-        return new LoginVO(token.getAccessToken(), user.getUserId(), user.getUsername(), user.getRole());
+        boolean rewarded = rewardDailyLoginIfNeeded(user);
+        User refreshed = userMapper.selectById(user.getUserId());
+        User loginUser = refreshed == null ? user : refreshed;
+
+        return new LoginVO(
+                token.getAccessToken(),
+                loginUser.getUserId(),
+                loginUser.getUsername(),
+                displayName(loginUser),
+                loginUser.getRole(),
+                safeInt(loginUser.getCommunityLevel(), 1),
+                safeInt(loginUser.getExperiencePoints(), 0),
+                rewarded,
+                rewarded ? DAILY_LOGIN_EXPERIENCE : 0
+        );
     }
 
     @Override
@@ -70,6 +89,10 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(hashPassword(request.password()));
         user.setRole(RoleType.USER);
         user.setStatus(UserStatus.ACTIVE);
+        user.setDisplayName(request.username().trim());
+        user.setBio("刚加入 StudyForge AI，正在整理自己的学习路径。");
+        user.setCommunityLevel(1);
+        user.setExperiencePoints(0);
         user.setReputationScore(0);
         userMapper.insert(user);
         return user.getUserId();
@@ -104,6 +127,25 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    public Long currentUserId(String authorization) {
+        String tokenValue = normalizeToken(authorization);
+        if (tokenValue.isBlank()) {
+            return null;
+        }
+
+        UserToken token = userTokenMapper.selectByToken(tokenValue);
+        if (token == null || !"ACTIVE".equals(token.getStatus()) || token.getExpireTime().isBefore(LocalDateTime.now())) {
+            return null;
+        }
+
+        User user = userMapper.selectById(token.getUserId());
+        if (user == null || !UserStatus.ACTIVE.equals(user.getStatus())) {
+            return null;
+        }
+        return user.getUserId();
+    }
+
+    @Override
     public Long requireUserId(String authorization) {
         return requireUser(authorization).getUserId();
     }
@@ -125,6 +167,19 @@ public class AuthServiceImpl implements AuthService {
             return token.substring(TOKEN_PREFIX.length()).trim();
         }
         return token;
+    }
+
+    private boolean rewardDailyLoginIfNeeded(User user) {
+        LocalDate today = LocalDate.now();
+        if (today.equals(user.getLastLoginRewardDate())) {
+            return false;
+        }
+
+        boolean updated = userMapper.rewardDailyLogin(user.getUserId(), today, DAILY_LOGIN_EXPERIENCE) > 0;
+        if (updated) {
+            userExperienceMapper.insertIgnore(user.getUserId(), "DAILY_LOGIN", DAILY_LOGIN_EXPERIENCE, null, today);
+        }
+        return updated;
     }
 
     private String newAccessToken() {
@@ -156,5 +211,13 @@ public class AuthServiceImpl implements AuthService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String displayName(User user) {
+        return isBlank(user.getDisplayName()) ? user.getUsername() : user.getDisplayName();
+    }
+
+    private int safeInt(Integer value, int fallback) {
+        return value == null ? fallback : value;
     }
 }

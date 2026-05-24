@@ -6,9 +6,11 @@ import {
   BookMarked,
   Bookmark,
   Bot,
+  Flag,
   Flame,
   Languages,
   MessageSquareText,
+  PencilLine,
   Send,
   ThumbsUp,
   Volume2
@@ -20,6 +22,7 @@ import {
   getComments,
   getInteractionState,
   recordPostView,
+  reportPost,
   toggleFavorite,
   toggleLike
 } from '@/api/interactions';
@@ -42,7 +45,10 @@ const aiSummary = ref<AiResult | null>(null);
 const reviewCards = ref<AiResult | null>(null);
 const voice = ref<VoiceResult | null>(null);
 const newComment = ref('');
+const reportReason = ref('');
+const reportSuccess = ref('');
 const aiLoading = ref('');
+const reportLoading = ref(false);
 const actionError = ref('');
 const loading = ref(false);
 const errorMessage = ref('');
@@ -136,9 +142,28 @@ async function submitComment() {
   }
 }
 
+async function submitReport() {
+  const reason = reportReason.value.trim();
+  if (!reason) {
+    actionError.value = '请写下举报原因，方便管理员判断';
+    return;
+  }
+
+  reportLoading.value = true;
+  reportSuccess.value = '';
+  const result = await runAuthenticated(() => reportPost(postId.value, reason));
+  if (result) {
+    reportReason.value = '';
+    reportSuccess.value = `举报已提交，编号 #${result.reportId}`;
+  }
+  reportLoading.value = false;
+}
+
 async function createSummary() {
   aiLoading.value = 'summary';
-  const result = await runAuthenticated(() => generateSummary(postId.value, post.value?.languageCode ?? preferencesStore.languageCode));
+  const result = await runAuthenticated(() =>
+    generateSummary(postId.value, post.value?.languageCode ?? requestedLanguage.value, preferencesStore.languageCode)
+  );
   if (result) {
     aiSummary.value = result;
   }
@@ -147,7 +172,9 @@ async function createSummary() {
 
 async function createReviewCards() {
   aiLoading.value = 'cards';
-  const result = await runAuthenticated(() => generateReviewCards(postId.value, post.value?.languageCode ?? preferencesStore.languageCode));
+  const result = await runAuthenticated(() =>
+    generateReviewCards(postId.value, post.value?.languageCode ?? requestedLanguage.value, preferencesStore.languageCode)
+  );
   if (result) {
     reviewCards.value = result;
   }
@@ -206,6 +233,10 @@ async function playVoice() {
         </div>
 
         <div class="article-actions">
+          <RouterLink v-if="sessionStore.isAuthenticated && post.authorId === sessionStore.userId" class="secondary-button" :to="`/posts/${post.postId}/edit`">
+            <PencilLine :size="17" />
+            <span>编辑文章</span>
+          </RouterLink>
           <button class="secondary-button" type="button" @click="likePost">
             <ThumbsUp :size="17" />
             <span>{{ interaction?.liked ? '已赞' : '点赞' }} {{ interaction?.likeCount ?? post.likeCount }}</span>
@@ -232,7 +263,7 @@ async function playVoice() {
             <article v-for="comment in comments" :key="comment.commentId" class="comment-item">
               <strong>#{{ comment.userId }}</strong>
               <span>{{ comment.languageCode }}</span>
-              <p>{{ comment.content }}</p>
+              <MarkdownRenderer class="comment-markdown" :content="comment.content" />
             </article>
           </div>
           <EmptyState v-else title="还没有讨论" description="读完后可以留下一个问题或补充。" />
@@ -258,8 +289,8 @@ async function playVoice() {
           <button class="secondary-button full-width" type="button" :disabled="aiLoading === 'cards'" @click="createReviewCards">
             {{ aiLoading === 'cards' ? '正在生成' : '生成复习卡片' }}
           </button>
-          <pre v-if="aiSummary" class="ai-output">{{ aiSummary.text }}</pre>
-          <pre v-if="reviewCards" class="ai-output">{{ reviewCards.text }}</pre>
+          <MarkdownRenderer v-if="aiSummary" class="ai-output" :content="aiSummary.text" />
+          <MarkdownRenderer v-if="reviewCards" class="ai-output" :content="reviewCards.text" />
         </section>
 
         <section class="side-panel">
@@ -270,7 +301,11 @@ async function playVoice() {
           <dl class="info-list">
             <div>
               <dt>作者</dt>
-              <dd>#{{ post.authorId }}</dd>
+              <dd>
+                <RouterLink class="text-link" :to="`/users/${post.authorId}`">
+                  {{ post.authorName || `#${post.authorId}` }}
+                </RouterLink>
+              </dd>
             </div>
             <div>
               <dt>编号</dt>
@@ -281,6 +316,20 @@ async function playVoice() {
               <dd>{{ interaction?.commentCount ?? post.commentCount }}</dd>
             </div>
           </dl>
+        </section>
+
+        <section class="side-panel">
+          <div class="panel-title">
+            <Flag :size="18" />
+            <span>举报文章</span>
+          </div>
+          <form class="compact-form" @submit.prevent="submitReport">
+            <textarea v-model.trim="reportReason" rows="4" placeholder="说明哪里可能有问题，例如广告、误导、攻击或其他不适合社区的内容" />
+            <button class="secondary-button full-width" type="submit" :disabled="reportLoading">
+              {{ reportLoading ? '提交中' : '提交举报' }}
+            </button>
+            <p v-if="reportSuccess" class="form-success">{{ reportSuccess }}</p>
+          </form>
         </section>
 
         <section class="side-panel">

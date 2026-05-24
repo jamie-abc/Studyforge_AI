@@ -1,5 +1,5 @@
 import { http, unwrap } from '@/api/http';
-import type { CommentItem, PostInteractionState } from '@/types/api';
+import type { CommentItem, PostInteractionState, ReportSubmission } from '@/types/api';
 
 export function getInteractionState(postId: number | string) {
   return unwrap<PostInteractionState>(http.get(`/posts/${postId}/interaction`));
@@ -26,6 +26,14 @@ export function createComment(postId: number | string, content: string, language
     http.post(`/posts/${postId}/comments`, {
       content,
       languageCode
+    })
+  );
+}
+
+export function reportPost(postId: number | string, reason: string) {
+  return unwrap<ReportSubmission>(
+    http.post(`/posts/${postId}/reports`, {
+      reason
     })
   );
 }

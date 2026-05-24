@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
-import { BookOpen, CircleHelp, Home, Library, LogIn, LogOut, PenLine, Search, UserRound } from '@lucide/vue';
+import { BookOpen, CircleHelp, Home, Library, LogIn, LogOut, PenLine, Search, Settings, UserRound, Users } from '@lucide/vue';
 import studyforgeLogo from '@/assets/studyforge-logo-mark.png';
 import { usePreferencesStore, type LanguageCode } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
@@ -22,6 +22,9 @@ const copy = computed(() => {
       home: 'Home',
       knowledge: 'Knowledge',
       library: 'My Study',
+      profile: 'Profile',
+      friends: 'Friends',
+      account: 'Account',
       publish: 'Write',
       help: 'Help',
       search: 'Search articles or topics',
@@ -36,7 +39,10 @@ const copy = computed(() => {
     home: '首页',
     knowledge: '知识流',
     library: '我的学习',
-    publish: '发布',
+      profile: '我的主页',
+      friends: '好友',
+      account: '账号',
+      publish: '发布',
     help: '求助',
     search: '搜索文章或主题',
     language: '语言',
@@ -77,6 +83,14 @@ async function logout() {
           <Library :size="17" />
           <span>{{ copy.library }}</span>
         </RouterLink>
+        <RouterLink to="/me">
+          <UserRound :size="17" />
+          <span>{{ copy.profile }}</span>
+        </RouterLink>
+        <RouterLink to="/friends">
+          <Users :size="17" />
+          <span>{{ copy.friends }}</span>
+        </RouterLink>
         <RouterLink to="/publish">
           <PenLine :size="17" />
           <span>{{ copy.publish }}</span>
@@ -102,11 +116,16 @@ async function logout() {
         </label>
 
         <div v-if="sessionStore.isAuthenticated" class="user-chip">
-          <UserRound :size="17" />
-          <span>{{ sessionStore.username }}</span>
+          <RouterLink class="profile-link" to="/me">
+            <UserRound :size="17" />
+            <span>{{ sessionStore.displayName }}</span>
+          </RouterLink>
           <button type="button" :aria-label="copy.logout" @click="logout">
             <LogOut :size="16" />
           </button>
+          <RouterLink class="chip-icon-link" to="/account" :aria-label="copy.account">
+            <Settings :size="16" />
+          </RouterLink>
         </div>
 
         <RouterLink v-else class="primary-button" to="/login">

@@ -1,22 +1,21 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { Activity, Database, Layers3, RefreshCw, ServerCog } from '@lucide/vue';
+import { Activity, Database, Flag, Layers3, Pin, RefreshCw, ServerCog, Users } from '@lucide/vue';
+import { getAdminOverview } from '@/api/community';
 import { getHealth } from '@/api/health';
 import LoadingState from '@/components/LoadingState.vue';
-import type { HealthStatus } from '@/types/api';
+import type { AdminOverview, HealthStatus } from '@/types/api';
 
 const health = ref<HealthStatus | null>(null);
+const overview = ref<AdminOverview | null>(null);
 const loading = ref(false);
 const errorMessage = ref('');
 
 const modules = [
-  { name: '账号与权限', owner: '数据库账号、角色、登录令牌', status: 'live', label: '已接入' },
-  { name: '内容库', owner: '文章、分类、原始语言内容', status: 'live', label: '已接入' },
-  { name: '学习记录', owner: '收藏、浏览记录、复习资料', status: 'live', label: '已接入' },
-  { name: 'AI 助手', owner: '摘要、问答、学习卡片、Markdown 排版', status: 'live', label: '已接入' },
-  { name: '语音学习', owner: '文本朗读与调用记录', status: 'live', label: '已接入' },
-  { name: '求助讨论', owner: '提问、回答、采纳状态', status: 'live', label: '已接入' },
-  { name: '系统设置', owner: 'AI 与语音供应商配置', status: 'live', label: '已接入' }
+  { name: '帖子审核', owner: '处理举报、下架违规内容、恢复误判帖子', status: 'live', label: '可管理' },
+  { name: '置顶推荐', owner: '把值得阅读的文章固定在更靠前的位置', status: 'live', label: '可管理' },
+  { name: '账号状态', owner: '查看账号资料、发帖数、评论数和社区等级', status: 'live', label: '可管理' },
+  { name: 'AI 与语音设置', owner: '维护模型地址、密钥和语音服务参数', status: 'live', label: '可管理' }
 ];
 
 async function loadHealth() {
@@ -24,7 +23,9 @@ async function loadHealth() {
   errorMessage.value = '';
 
   try {
-    health.value = await getHealth();
+    const [healthStatus, communityOverview] = await Promise.all([getHealth(), getAdminOverview()]);
+    health.value = healthStatus;
+    overview.value = communityOverview;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '服务状态暂时没取到';
   } finally {
@@ -56,9 +57,32 @@ onMounted(loadHealth);
         <strong>{{ health?.service || 'studyforge-webapi' }}</strong>
       </div>
       <div class="metric-card">
+        <Users :size="20" />
+        <span>活跃账号</span>
+        <strong>{{ overview ? `${overview.activeUsers}/${overview.totalUsers}` : '...' }}</strong>
+      </div>
+      <div class="metric-card">
+        <Flag :size="20" />
+        <span>待处理举报</span>
+        <strong>{{ overview?.pendingReports ?? '...' }}</strong>
+      </div>
+      <div class="metric-card">
+        <Pin :size="20" />
+        <span>置顶文章</span>
+        <strong>{{ overview?.featuredPosts ?? '...' }}</strong>
+      </div>
+    </div>
+
+    <div class="metric-grid compact-metrics">
+      <div class="metric-card">
         <Activity :size="20" />
-        <span>状态</span>
+        <span>接口状态</span>
         <strong>{{ health?.status || (loading ? 'CHECKING' : 'UNKNOWN') }}</strong>
+      </div>
+      <div class="metric-card">
+        <Layers3 :size="20" />
+        <span>已发布文章</span>
+        <strong>{{ overview?.publishedPosts ?? '...' }}</strong>
       </div>
       <div class="metric-card">
         <Database :size="20" />
@@ -66,8 +90,8 @@ onMounted(loadHealth);
         <strong>test_studyforge_ai_v2</strong>
       </div>
       <div class="metric-card">
-        <Layers3 :size="20" />
-        <span>控制台</span>
+        <ServerCog :size="20" />
+        <span>前端</span>
         <strong>portal-web</strong>
       </div>
     </div>

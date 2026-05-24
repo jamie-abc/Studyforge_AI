@@ -13,7 +13,13 @@ public interface PostMapper {
                                @Param("keyword") String keyword,
                                @Param("limit") int limit);
 
+    List<Post> selectPublishedByAuthor(@Param("authorId") Long authorId, @Param("limit") int limit);
+
     List<Post> selectFavoritesByUser(@Param("userId") Long userId, @Param("limit") int limit);
+
+    List<Post> selectFavoriteCollectionByUser(@Param("userId") Long userId,
+                                              @Param("collectionId") Long collectionId,
+                                              @Param("limit") int limit);
 
     List<Post> selectHistoryByUser(@Param("userId") Long userId, @Param("limit") int limit);
 

@@ -4,6 +4,7 @@ import { CircleHelp, MessageSquarePlus, RefreshCw, Send } from '@lucide/vue';
 import { createHelpAnswer, createHelpRequest, getHelpAnswers, getHelpRequests } from '@/api/help';
 import EmptyState from '@/components/EmptyState.vue';
 import LoadingState from '@/components/LoadingState.vue';
+import MarkdownRenderer from '@/components/MarkdownRenderer.vue';
 import { useSessionStore } from '@/stores/session';
 import type { HelpAnswer, HelpRequest } from '@/types/api';
 
@@ -167,7 +168,7 @@ onMounted(loadHelps);
             <span>问题详情</span>
           </div>
           <h2>{{ activeHelp.title }}</h2>
-          <p>{{ activeHelp.description }}</p>
+          <MarkdownRenderer class="help-markdown" :content="activeHelp.description" />
           <div class="post-meta">
             <span>#{{ activeHelp.userId }}</span>
             <span>{{ activeHelp.rewardPoints }} 分</span>
@@ -182,7 +183,7 @@ onMounted(loadHelps);
           <div v-if="activeAnswers.length" class="comment-list">
             <article v-for="answer in activeAnswers" :key="answer.answerId" class="comment-item">
               <strong>#{{ answer.userId }}</strong>
-              <p>{{ answer.content }}</p>
+              <MarkdownRenderer class="comment-markdown" :content="answer.content" />
             </article>
           </div>
           <p v-else>还没有回答，可以先给出一个可尝试的方向。</p>
