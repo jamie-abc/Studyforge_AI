@@ -2,14 +2,35 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CalendarClock, CircleHelp, MessageSquarePlus, RefreshCw, Send } from '@lucide/vue';
-import { createHelpAnswer, createHelpRequest, getHelpAnswers, getHelpRequests } from '@/api/help';
+import { createHelpAnswer, createHelpRequest, deleteHelpAnswer, getHelpAnswers, getHelpRequests, toggleHelpAnswerLike } from '@/api/help';
 import EmptyState from '@/components/EmptyState.vue';
+import ForumThreadItem from '@/components/ForumThreadItem.vue';
 import LoadingState from '@/components/LoadingState.vue';
+import MentionTextarea from '@/components/MentionTextarea.vue';
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
 import type { HelpAnswer, HelpRequest } from '@/types/api';
 import { formatShortDateTime } from '@/utils/date';
+
+interface ForumThreadNode {
+  id: number;
+  parentId: number | null;
+  userId: number;
+  authorUsername: string;
+  authorName: string;
+  authorAvatarUrl: string;
+  parentAuthorName: string;
+  content: string;
+  floorNo: number;
+  likeCount: number;
+  likedByViewer: boolean;
+  canDelete: boolean;
+  deleted: boolean;
+  accepted?: boolean;
+  createdLabel: string;
+  replies: ForumThreadNode[];
+}
 
 const sessionStore = useSessionStore();
 const preferencesStore = usePreferencesStore();
@@ -20,6 +41,8 @@ const activeHelpId = ref<number | null>(null);
 const loading = ref(false);
 const errorMessage = ref('');
 const answerText = ref('');
+const replyAnswerText = ref('');
+const replyingToAnswer = ref<HelpAnswer | null>(null);
 
 const form = reactive({
   title: '',
@@ -31,6 +54,7 @@ const form = reactive({
 const titleInput = ref<HTMLInputElement | null>(null);
 const activeHelp = computed(() => helps.value.find((item) => item.helpId === activeHelpId.value) ?? helps.value[0] ?? null);
 const activeAnswers = computed(() => (activeHelp.value ? answers.value[activeHelp.value.helpId] ?? [] : []));
+const activeAnswerTree = computed(() => buildAnswerTree(activeAnswers.value));
 const openHelpCount = computed(() => helps.value.filter((item) => normalizeStatus(item.status) === 'OPEN').length);
 const solvedHelpCount = computed(() => helps.value.filter((item) => ['SOLVED', 'RESOLVED', 'CLOSED'].includes(normalizeStatus(item.status))).length);
 const totalRewardPoints = computed(() => helps.value.reduce((total, item) => total + Number(item.rewardPoints || 0), 0));
@@ -124,6 +148,90 @@ async function sendAnswer() {
   }
 }
 
+async function sendAnswerReply() {
+  if (!activeHelp.value || !replyingToAnswer.value || !replyAnswerText.value.trim()) {
+    return;
+  }
+  if (!sessionStore.isAuthenticated) {
+    errorMessage.value = '请先登录再回复';
+    return;
+  }
+
+  try {
+    const created = await createHelpAnswer(activeHelp.value.helpId, replyAnswerText.value, replyingToAnswer.value.answerId);
+    upsertAnswer(activeHelp.value.helpId, created);
+    replyAnswerText.value = '';
+    replyingToAnswer.value = null;
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '暂时发送不了回复';
+  }
+}
+
+function startAnswerReply(node: ForumThreadNode) {
+  const source = activeAnswers.value.find((item) => item.answerId === node.id);
+  if (!source || source.deleted) {
+    return;
+  }
+  replyingToAnswer.value = source;
+  replyAnswerText.value = source.authorUsername ? `@${source.authorUsername} ` : '';
+}
+
+function cancelAnswerReply() {
+  replyingToAnswer.value = null;
+  replyAnswerText.value = '';
+}
+
+async function likeAnswer(node: ForumThreadNode) {
+  if (!activeHelp.value) {
+    return;
+  }
+  if (!sessionStore.isAuthenticated) {
+    errorMessage.value = '请先登录再点赞';
+    return;
+  }
+
+  try {
+    const updated = await toggleHelpAnswerLike(activeHelp.value.helpId, node.id);
+    upsertAnswer(activeHelp.value.helpId, updated);
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '暂时点赞不了';
+  }
+}
+
+async function removeAnswer(node: ForumThreadNode) {
+  if (!activeHelp.value || !window.confirm('确定删除这条回答吗？删除后会保留楼层和回复关系。')) {
+    return;
+  }
+  if (!sessionStore.isAuthenticated) {
+    errorMessage.value = '请先登录再删除';
+    return;
+  }
+
+  try {
+    await deleteHelpAnswer(activeHelp.value.helpId, node.id);
+    answers.value = {
+      ...answers.value,
+      [activeHelp.value.helpId]: activeAnswers.value.map((answer) =>
+        answer.answerId === node.id
+          ? { ...answer, status: 'DELETED', deleted: true, canDelete: false, likedByViewer: false, content: '这条回答已删除' }
+          : answer
+      )
+    };
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '暂时删除不了';
+  }
+}
+
+function upsertAnswer(helpId: number, answer: HelpAnswer) {
+  const current = answers.value[helpId] ?? [];
+  answers.value = {
+    ...answers.value,
+    [helpId]: current.some((item) => item.answerId === answer.answerId)
+      ? current.map((item) => (item.answerId === answer.answerId ? answer : item))
+      : [...current, answer].sort((a, b) => (a.floorNo || 0) - (b.floorNo || 0))
+  };
+}
+
 async function selectHelp(helpId: number) {
   activeHelpId.value = helpId;
   if (!answers.value[helpId]) {
@@ -137,6 +245,42 @@ function helpTime(help: HelpRequest) {
 
 function answerTime(answer: HelpAnswer) {
   return formatShortDateTime(answer.createdTime, preferencesStore.languageCode);
+}
+
+function buildAnswerTree(items: HelpAnswer[]): ForumThreadNode[] {
+  const nodes = new Map<number, ForumThreadNode>();
+  const roots: ForumThreadNode[] = [];
+
+  for (const answer of [...items].sort((a, b) => (a.floorNo || 0) - (b.floorNo || 0))) {
+    nodes.set(answer.answerId, {
+      id: answer.answerId,
+      parentId: answer.parentAnswerId,
+      userId: answer.userId,
+      authorUsername: answer.authorUsername || `user_${answer.userId}`,
+      authorName: answer.authorName || answer.authorUsername || `#${answer.userId}`,
+      authorAvatarUrl: answer.authorAvatarUrl,
+      parentAuthorName: answer.parentAuthorName,
+      content: answer.content,
+      floorNo: answer.floorNo,
+      likeCount: answer.likeCount,
+      likedByViewer: answer.likedByViewer,
+      canDelete: answer.canDelete,
+      deleted: answer.deleted,
+      accepted: Number(answer.accepted) === 1,
+      createdLabel: answerTime(answer),
+      replies: []
+    });
+  }
+
+  for (const node of nodes.values()) {
+    if (node.parentId && nodes.has(node.parentId)) {
+      nodes.get(node.parentId)?.replies.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  return roots;
 }
 
 onMounted(loadHelps);
@@ -252,18 +396,26 @@ watch(
               <CircleHelp :size="18" />
               <span>回答与建议</span>
             </div>
-            <div v-if="activeAnswers.length" class="comment-list help-answer-list">
-              <article v-for="answer in activeAnswers" :key="answer.answerId" class="comment-item help-answer-item">
-                <div class="comment-meta">
-                  <strong>#{{ answer.userId }}</strong>
-                  <time v-if="answerTime(answer)">{{ answerTime(answer) }}</time>
-                </div>
-                <MarkdownRenderer class="comment-markdown" :content="answer.content" />
-              </article>
+            <div v-if="activeAnswerTree.length" class="comment-list help-answer-list forum-thread-list">
+              <ForumThreadItem
+                v-for="answer in activeAnswerTree"
+                :key="answer.id"
+                :node="answer"
+                :replying-to-id="replyingToAnswer?.answerId ?? null"
+                :reply-text="replyAnswerText"
+                reply-placeholder="写下回复，输入 @用户名 可以提醒对方"
+                submit-label="发送回复"
+                @reply="startAnswerReply"
+                @cancel-reply="cancelAnswerReply"
+                @update-reply-text="replyAnswerText = $event"
+                @submit-reply="sendAnswerReply"
+                @like="likeAnswer"
+                @delete="removeAnswer"
+              />
             </div>
             <p v-else>还没有回答。可以先给出一个排查方向、参考资料或可执行步骤。</p>
             <form class="compact-form help-answer-form" @submit.prevent="sendAnswer">
-              <textarea v-model.trim="answerText" rows="5" placeholder="写下你的建议、步骤或参考资料，支持 Markdown" />
+              <MentionTextarea v-model="answerText" rows="5" placeholder="写下你的建议、步骤或参考资料，支持 Markdown；输入 @ 可以选择好友" />
               <button class="secondary-button full-width" type="submit">提交回答</button>
             </form>
           </section>

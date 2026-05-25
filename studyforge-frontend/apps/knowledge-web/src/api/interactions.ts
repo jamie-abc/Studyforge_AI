@@ -21,13 +21,23 @@ export function getComments(postId: number | string) {
   return unwrap<CommentItem[]>(http.get(`/posts/${postId}/comments`));
 }
 
-export function createComment(postId: number | string, content: string, languageCode: string) {
+export function createComment(postId: number | string, content: string, languageCode: string, parentCommentId?: number | null) {
   return unwrap<CommentItem>(
     http.post(`/posts/${postId}/comments`, {
       content,
-      languageCode
+      languageCode,
+      parentCommentId
     })
   );
+}
+
+export function toggleCommentLike(postId: number | string, commentId: number | string) {
+  return unwrap<CommentItem>(http.post(`/posts/${postId}/comments/${commentId}/likes`));
+}
+
+export async function deleteComment(postId: number | string, commentId: number | string) {
+  await unwrap<void>(http.delete(`/posts/${postId}/comments/${commentId}`));
+  return true;
 }
 
 export function reportPost(postId: number | string, reason: string) {

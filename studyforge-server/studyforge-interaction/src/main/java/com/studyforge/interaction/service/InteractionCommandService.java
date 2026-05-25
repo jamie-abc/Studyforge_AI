@@ -16,5 +16,9 @@ public interface InteractionCommandService {
 
     CommentVO comment(Long postId, Long userId, CreateCommentRequest request);
 
-    List<CommentVO> comments(Long postId);
+    List<CommentVO> comments(Long postId, Long viewerId);
+
+    CommentVO likeComment(Long postId, Long commentId, Long userId);
+
+    void deleteComment(Long postId, Long commentId, Long userId);
 }

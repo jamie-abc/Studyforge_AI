@@ -20,22 +20,44 @@ import { generateReviewCards, generateSummary } from '@/api/ai';
 import { ApiError } from '@/api/http';
 import {
   createComment,
+  deleteComment,
   getComments,
   getInteractionState,
   recordPostView,
   reportPost,
+  toggleCommentLike,
   toggleFavorite,
   toggleLike
 } from '@/api/interactions';
 import { getPostDetail } from '@/api/posts';
 import { textToSpeech } from '@/api/voice';
 import EmptyState from '@/components/EmptyState.vue';
+import ForumThreadItem from '@/components/ForumThreadItem.vue';
 import LoadingState from '@/components/LoadingState.vue';
+import MentionTextarea from '@/components/MentionTextarea.vue';
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
 import type { AiResult, CommentItem, PostDetail, PostInteractionState, VoiceResult } from '@/types/api';
 import { formatDateTime, formatShortDateTime } from '@/utils/date';
+
+interface ForumThreadNode {
+  id: number;
+  parentId: number | null;
+  userId: number;
+  authorUsername: string;
+  authorName: string;
+  authorAvatarUrl: string;
+  parentAuthorName: string;
+  content: string;
+  floorNo: number;
+  likeCount: number;
+  likedByViewer: boolean;
+  canDelete: boolean;
+  deleted: boolean;
+  createdLabel: string;
+  replies: ForumThreadNode[];
+}
 
 const route = useRoute();
 const preferencesStore = usePreferencesStore();
@@ -47,6 +69,8 @@ const aiSummary = ref<AiResult | null>(null);
 const reviewCards = ref<AiResult | null>(null);
 const voice = ref<VoiceResult | null>(null);
 const newComment = ref('');
+const replyComment = ref('');
+const replyingToComment = ref<CommentItem | null>(null);
 const reportReason = ref('');
 const reportSuccess = ref('');
 const aiLoading = ref('');
@@ -58,6 +82,7 @@ const postId = computed(() => String(route.params.postId));
 const requestedLanguage = computed(() => (typeof route.query.language === 'string' ? route.query.language : preferencesStore.languageCode));
 const postCreatedTime = computed(() => formatDateTime(post.value?.createdTime, preferencesStore.languageCode));
 const postUpdatedTime = computed(() => formatDateTime(post.value?.updatedTime, preferencesStore.languageCode));
+const commentTree = computed(() => buildCommentTree(comments.value));
 
 async function loadDetail() {
   loading.value = true;
@@ -138,11 +163,77 @@ async function submitComment() {
 
   const comment = await runAuthenticated(() => createComment(postId.value, content, post.value?.languageCode ?? preferencesStore.languageCode));
   if (comment) {
-    comments.value = [...comments.value, comment];
+    upsertComment(comment);
     newComment.value = '';
     interaction.value = interaction.value
       ? { ...interaction.value, commentCount: interaction.value.commentCount + 1 }
       : interaction.value;
+  }
+}
+
+async function submitReply() {
+  const parent = replyingToComment.value;
+  const content = replyComment.value.trim();
+  if (!parent || !content) {
+    return;
+  }
+
+  const comment = await runAuthenticated(() =>
+    createComment(postId.value, content, post.value?.languageCode ?? preferencesStore.languageCode, parent.commentId)
+  );
+  if (comment) {
+    upsertComment(comment);
+    replyComment.value = '';
+    replyingToComment.value = null;
+    interaction.value = interaction.value
+      ? { ...interaction.value, commentCount: interaction.value.commentCount + 1 }
+      : interaction.value;
+  }
+}
+
+function startReply(node: ForumThreadNode) {
+  const source = comments.value.find((item) => item.commentId === node.id);
+  if (!source || source.deleted) {
+    return;
+  }
+  replyingToComment.value = source;
+  replyComment.value = source.authorUsername ? `@${source.authorUsername} ` : '';
+}
+
+function cancelReply() {
+  replyingToComment.value = null;
+  replyComment.value = '';
+}
+
+async function likeComment(node: ForumThreadNode) {
+  const updated = await runAuthenticated(() => toggleCommentLike(postId.value, node.id));
+  if (updated) {
+    upsertComment(updated);
+  }
+}
+
+async function removeComment(node: ForumThreadNode) {
+  if (!window.confirm('确定删除这条评论吗？删除后会保留楼层和回复关系。')) {
+    return;
+  }
+  const result = await runAuthenticated(() => deleteComment(postId.value, node.id));
+  if (result !== null) {
+    comments.value = comments.value.map((comment) =>
+      comment.commentId === node.id
+        ? { ...comment, status: 'DELETED', deleted: true, canDelete: false, likedByViewer: false, content: '这条评论已删除' }
+        : comment
+    );
+    interaction.value = interaction.value
+      ? { ...interaction.value, commentCount: Math.max(0, interaction.value.commentCount - 1) }
+      : interaction.value;
+  }
+}
+
+function upsertComment(comment: CommentItem) {
+  if (comments.value.some((item) => item.commentId === comment.commentId)) {
+    comments.value = comments.value.map((item) => (item.commentId === comment.commentId ? comment : item));
+  } else {
+    comments.value = [...comments.value, comment].sort((a, b) => (a.floorNo || 0) - (b.floorNo || 0));
   }
 }
 
@@ -203,6 +294,41 @@ async function playVoice() {
 
 function commentTime(comment: CommentItem) {
   return formatShortDateTime(comment.createdTime, preferencesStore.languageCode);
+}
+
+function buildCommentTree(items: CommentItem[]): ForumThreadNode[] {
+  const nodes = new Map<number, ForumThreadNode>();
+  const roots: ForumThreadNode[] = [];
+
+  for (const comment of [...items].sort((a, b) => (a.floorNo || 0) - (b.floorNo || 0))) {
+    nodes.set(comment.commentId, {
+      id: comment.commentId,
+      parentId: comment.parentCommentId,
+      userId: comment.userId,
+      authorUsername: comment.authorUsername || `user_${comment.userId}`,
+      authorName: comment.authorName || comment.authorUsername || `#${comment.userId}`,
+      authorAvatarUrl: comment.authorAvatarUrl,
+      parentAuthorName: comment.parentAuthorName,
+      content: comment.content,
+      floorNo: comment.floorNo,
+      likeCount: comment.likeCount,
+      likedByViewer: comment.likedByViewer,
+      canDelete: comment.canDelete,
+      deleted: comment.deleted,
+      createdLabel: commentTime(comment),
+      replies: []
+    });
+  }
+
+  for (const node of nodes.values()) {
+    if (node.parentId && nodes.has(node.parentId)) {
+      nodes.get(node.parentId)?.replies.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  return roots;
 }
 </script>
 
@@ -271,19 +397,26 @@ function commentTime(comment: CommentItem) {
             <MessageSquareText :size="18" />
             <span>讨论</span>
           </div>
-          <div v-if="comments.length" class="comment-list">
-            <article v-for="comment in comments" :key="comment.commentId" class="comment-item">
-              <div class="comment-meta">
-                <strong>#{{ comment.userId }}</strong>
-                <span>{{ comment.languageCode }}</span>
-                <time v-if="commentTime(comment)">{{ commentTime(comment) }}</time>
-              </div>
-              <MarkdownRenderer class="comment-markdown" :content="comment.content" />
-            </article>
+          <div v-if="commentTree.length" class="comment-list forum-thread-list">
+            <ForumThreadItem
+              v-for="comment in commentTree"
+              :key="comment.id"
+              :node="comment"
+              :replying-to-id="replyingToComment?.commentId ?? null"
+              :reply-text="replyComment"
+              reply-placeholder="写下回复，输入 @用户名 可以提醒对方"
+              submit-label="发送回复"
+              @reply="startReply"
+              @cancel-reply="cancelReply"
+              @update-reply-text="replyComment = $event"
+              @submit-reply="submitReply"
+              @like="likeComment"
+              @delete="removeComment"
+            />
           </div>
           <EmptyState v-else title="还没有讨论" description="读完后可以留下一个问题或补充。" />
           <form class="comment-form" @submit.prevent="submitComment">
-            <textarea v-model.trim="newComment" rows="3" placeholder="写下你的问题、补充或读后想法" />
+            <MentionTextarea v-model="newComment" rows="3" placeholder="写下你的问题、补充或读后想法，输入 @ 可以选择好友" />
             <button class="primary-button" type="submit">
               <Send :size="17" />
               <span>发送</span>

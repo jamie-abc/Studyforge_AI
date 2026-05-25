@@ -77,10 +77,24 @@ export interface PostInteractionState {
 export interface CommentItem {
   commentId: number;
   postId: number;
+  parentCommentId: number | null;
   userId: number;
+  authorUsername: string;
+  authorName: string;
+  authorAvatarUrl: string;
+  parentUserId: number | null;
+  parentAuthorUsername: string;
+  parentAuthorName: string;
   languageCode: string;
   content: string;
+  status: string;
+  floorNo: number;
+  likeCount: number;
+  likedByViewer: boolean;
+  canDelete: boolean;
+  deleted: boolean;
   createdTime: string | number[] | null;
+  updatedTime: string | number[] | null;
 }
 
 export interface ReportSubmission {
@@ -127,10 +141,24 @@ export interface HelpRequest {
 export interface HelpAnswer {
   answerId: number;
   helpId: number;
+  parentAnswerId: number | null;
   userId: number;
+  authorUsername: string;
+  authorName: string;
+  authorAvatarUrl: string;
+  parentUserId: number | null;
+  parentAuthorUsername: string;
+  parentAuthorName: string;
   content: string;
   accepted: number;
+  status: string;
+  floorNo: number;
+  likeCount: number;
+  likedByViewer: boolean;
+  canDelete: boolean;
+  deleted: boolean;
   createdTime: string | number[] | null;
+  updatedTime: string | number[] | null;
 }
 
 export interface TopicCategory {
@@ -241,7 +269,13 @@ export interface NotificationItem {
     | 'POST_LIKED'
     | 'POST_FAVORITED'
     | 'POST_COMMENTED'
+    | 'COMMENT_REPLIED'
+    | 'COMMENT_LIKED'
+    | 'COMMENT_MENTIONED'
     | 'HELP_ANSWERED'
+    | 'HELP_ANSWER_REPLIED'
+    | 'HELP_ANSWER_LIKED'
+    | 'HELP_ANSWER_MENTIONED'
     | 'FRIEND_REQUEST'
     | string;
   targetType: 'POST' | 'HELP' | 'USER' | string;

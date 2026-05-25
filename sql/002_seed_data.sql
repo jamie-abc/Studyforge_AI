@@ -3,6 +3,7 @@ SET NAMES utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE admin_audit_logs;
+TRUNCATE TABLE help_answer_likes;
 TRUNCATE TABLE help_answers;
 TRUNCATE TABLE help_requests;
 TRUNCATE TABLE voice_records;
@@ -13,6 +14,7 @@ TRUNCATE TABLE favorite_collection_items;
 TRUNCATE TABLE favorite_collections;
 TRUNCATE TABLE post_favorites;
 TRUNCATE TABLE post_likes;
+TRUNCATE TABLE comment_likes;
 TRUNCATE TABLE comments;
 TRUNCATE TABLE uploaded_files;
 TRUNCATE TABLE post_i18n;
@@ -758,6 +760,16 @@ INSERT INTO comments (post_id, user_id, language_code, content)
 SELECT @post_service_layer, u.user_id, 'zh_CN', 'Service 不是转发器，这句话可以贴在代码评审清单里。'
 FROM users u WHERE u.username = 'wang_yu';
 
+UPDATE comments c
+JOIN (
+    SELECT
+        comment_id,
+        ROW_NUMBER() OVER (PARTITION BY post_id ORDER BY created_time ASC, comment_id ASC) AS floor_no
+    FROM comments
+) ranked ON ranked.comment_id = c.comment_id
+SET c.floor_no = ranked.floor_no
+WHERE c.floor_no = 0;
+
 INSERT INTO post_likes (post_id, user_id)
 SELECT p.post_id, u.user_id
 FROM (
@@ -837,7 +849,7 @@ UNION ALL SELECT @post_weekly_review, u.user_id, NOW() - INTERVAL 1 HOUR FROM us
 UNION ALL SELECT @post_service_layer, u.user_id, NOW() - INTERVAL 30 MINUTE FROM users u WHERE u.username = 'chen_jiayi';
 
 UPDATE posts p
-LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM comments GROUP BY post_id) c ON c.post_id = p.post_id
+LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM comments WHERE status = 'VISIBLE' GROUP BY post_id) c ON c.post_id = p.post_id
 LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM post_likes GROUP BY post_id) l ON l.post_id = p.post_id
 LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM post_favorites GROUP BY post_id) f ON f.post_id = p.post_id
 SET p.comment_count = COALESCE(c.cnt, 0),
@@ -942,6 +954,16 @@ SELECT @help_mixed_search, u.user_id,
        'For the first version, search the original visible text and tags only. Cross-language semantic search can come later after tags and embeddings are trustworthy. This keeps the feed behavior easy to explain.',
        0
 FROM users u WHERE u.username = 'noah_kim';
+
+UPDATE help_answers a
+JOIN (
+    SELECT
+        answer_id,
+        ROW_NUMBER() OVER (PARTITION BY help_id ORDER BY created_time ASC, answer_id ASC) AS floor_no
+    FROM help_answers
+) ranked ON ranked.answer_id = a.answer_id
+SET a.floor_no = ranked.floor_no
+WHERE a.floor_no = 0;
 
 INSERT INTO admin_audit_logs (admin_id, target_type, target_id, action_type, remark)
 SELECT u.user_id, 'integration_settings', 0, 'UPDATE_INTEGRATION_SETTINGS', 'AI and voice provider settings initialized for the local StudyForge environment.'

@@ -15,17 +15,27 @@ import com.studyforge.interaction.mapper.PostViewHistoryMapper;
 import com.studyforge.interaction.service.InteractionCommandService;
 import com.studyforge.interaction.vo.CommentVO;
 import com.studyforge.interaction.vo.PostInteractionStateVO;
+import com.studyforge.system.entity.User;
+import com.studyforge.system.mapper.UserMapper;
 import com.studyforge.system.service.NotificationService;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class InteractionCommandServiceImpl implements InteractionCommandService {
     private static final String DEFAULT_LANGUAGE = "zh_CN";
+    private static final Pattern MENTION_PATTERN = Pattern.compile("(?<![\\p{L}\\p{N}_])@([\\p{L}\\p{N}_\\-.]{2,32})");
 
     private final PostMapper postMapper;
     private final CommentMapper commentMapper;
+    private final UserMapper userMapper;
     private final PostLikeMapper postLikeMapper;
     private final PostFavoriteMapper postFavoriteMapper;
     private final PostViewHistoryMapper postViewHistoryMapper;
@@ -34,6 +44,7 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
 
     public InteractionCommandServiceImpl(PostMapper postMapper,
                                          CommentMapper commentMapper,
+                                         UserMapper userMapper,
                                          PostLikeMapper postLikeMapper,
                                          PostFavoriteMapper postFavoriteMapper,
                                          PostViewHistoryMapper postViewHistoryMapper,
@@ -41,6 +52,7 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
                                          NotificationService notificationService) {
         this.postMapper = postMapper;
         this.commentMapper = commentMapper;
+        this.userMapper = userMapper;
         this.postLikeMapper = postLikeMapper;
         this.postFavoriteMapper = postFavoriteMapper;
         this.postViewHistoryMapper = postViewHistoryMapper;
@@ -112,27 +124,75 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
         if (request == null || request.content() == null || request.content().isBlank()) {
             throw new BizException(ErrorCode.VALIDATION_ERROR, "comment content is required");
         }
+        Comment parent = null;
+        if (request.parentCommentId() != null) {
+            parent = commentMapper.selectById(request.parentCommentId());
+            if (parent == null || !postId.equals(parent.getPostId()) || !"VISIBLE".equals(parent.getStatus())) {
+                throw new BizException(ErrorCode.NOT_FOUND, "parent comment not found");
+            }
+        }
 
         Comment comment = new Comment();
         comment.setPostId(postId);
+        comment.setParentCommentId(parent == null ? null : parent.getCommentId());
         comment.setUserId(userId);
         comment.setLanguageCode(isBlank(request.languageCode()) ? DEFAULT_LANGUAGE : request.languageCode().trim());
         comment.setContent(request.content().trim());
         comment.setStatus("VISIBLE");
+        comment.setFloorNo(commentMapper.nextFloorNo(postId));
+        comment.setLikeCount(0);
         commentMapper.insert(comment);
         postMapper.incrementCommentCount(postId, 1);
-        notificationService.notifyPostCommented(post.getAuthorId(), userId, postId, comment.getCommentId(), postMapper.selectOriginalTitle(postId), comment.getContent());
-        Comment created = commentMapper.selectById(comment.getCommentId());
-        return toVO(created == null ? comment : created);
+        String postTitle = postMapper.selectOriginalTitle(postId);
+        Set<Long> notifiedRecipients = new HashSet<>();
+        if (parent == null) {
+            notifyPostCommented(notifiedRecipients, post.getAuthorId(), userId, postId, comment.getCommentId(), postTitle, comment.getContent());
+        } else {
+            notifyPostCommentReplied(notifiedRecipients, parent.getUserId(), userId, postId, comment.getCommentId(), postTitle, comment.getContent());
+        }
+        notifyPostMentions(notifiedRecipients, userId, postId, comment.getCommentId(), postTitle, comment.getContent());
+        Comment created = commentMapper.selectByIdForViewer(comment.getCommentId(), userId);
+        return toVO(created == null ? comment : created, post, userId);
     }
 
     @Override
-    public List<CommentVO> comments(Long postId) {
-        assertPost(postId);
-        return commentMapper.selectVisibleByPostId(postId)
+    public List<CommentVO> comments(Long postId, Long viewerId) {
+        Post post = assertPost(postId);
+        return commentMapper.selectByPostIdForViewer(postId, viewerId)
                 .stream()
-                .map(this::toVO)
+                .map(comment -> toVO(comment, post, viewerId))
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public CommentVO likeComment(Long postId, Long commentId, Long userId) {
+        Post post = assertPost(postId);
+        Comment comment = requireComment(postId, commentId);
+        if (!"VISIBLE".equals(comment.getStatus())) {
+            throw new BizException(ErrorCode.VALIDATION_ERROR, "deleted comment cannot be liked");
+        }
+        if (commentMapper.countLike(commentId, userId) > 0) {
+            commentMapper.deleteLike(commentId, userId);
+            commentMapper.incrementLikeCount(commentId, -1);
+        } else if (commentMapper.insertLike(commentId, userId) > 0) {
+            commentMapper.incrementLikeCount(commentId, 1);
+            notificationService.notifyPostCommentLiked(comment.getUserId(), userId, postId, commentId, postMapper.selectOriginalTitle(postId));
+        }
+        return toVO(commentMapper.selectByIdForViewer(commentId, userId), post, userId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteComment(Long postId, Long commentId, Long userId) {
+        Post post = assertPost(postId);
+        Comment comment = requireComment(postId, commentId);
+        if (!userId.equals(comment.getUserId()) && !userId.equals(post.getAuthorId())) {
+            throw new BizException(ErrorCode.FORBIDDEN, "only the comment author or post owner can delete this comment");
+        }
+        if (commentMapper.markDeleted(commentId) > 0) {
+            postMapper.incrementCommentCount(postId, -1);
+        }
     }
 
     private Post assertPost(Long postId) {
@@ -146,19 +206,106 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
         return post;
     }
 
-    private CommentVO toVO(Comment comment) {
+    private Comment requireComment(Long postId, Long commentId) {
+        if (commentId == null) {
+            throw new BizException(ErrorCode.VALIDATION_ERROR, "commentId is required");
+        }
+        Comment comment = commentMapper.selectById(commentId);
+        if (comment == null || !postId.equals(comment.getPostId())) {
+            throw new BizException(ErrorCode.NOT_FOUND, "comment not found");
+        }
+        return comment;
+    }
+
+    private CommentVO toVO(Comment comment, Post post, Long viewerId) {
+        boolean deleted = "DELETED".equals(comment.getStatus());
+        boolean canDelete = viewerId != null
+                && !deleted
+                && (viewerId.equals(comment.getUserId()) || viewerId.equals(post.getAuthorId()));
         return new CommentVO(
                 comment.getCommentId(),
                 comment.getPostId(),
+                comment.getParentCommentId(),
                 comment.getUserId(),
+                fallback(comment.getAuthorUsername(), "#" + comment.getUserId()),
+                fallback(comment.getAuthorName(), fallback(comment.getAuthorUsername(), "#" + comment.getUserId())),
+                comment.getAuthorAvatarUrl(),
+                comment.getParentUserId(),
+                comment.getParentAuthorUsername(),
+                comment.getParentAuthorName(),
                 comment.getLanguageCode(),
-                comment.getContent(),
-                comment.getCreatedTime()
+                deleted ? "这条评论已删除" : comment.getContent(),
+                comment.getStatus(),
+                safeInt(comment.getFloorNo()),
+                safeInt(comment.getLikeCount()),
+                Boolean.TRUE.equals(comment.getLikedByViewer()),
+                canDelete,
+                deleted,
+                comment.getCreatedTime(),
+                comment.getUpdatedTime()
         );
+    }
+
+    private void notifyPostMentions(Set<Long> notifiedRecipients,
+                                    Long actorId,
+                                    Long postId,
+                                    Long commentId,
+                                    String postTitle,
+                                    String content) {
+        for (Long recipientId : mentionedUserIds(content)) {
+            if (notifiedRecipients.add(recipientId)) {
+                notificationService.notifyPostCommentMentioned(recipientId, actorId, postId, commentId, postTitle, content);
+            }
+        }
+    }
+
+    private void notifyPostCommented(Set<Long> notifiedRecipients,
+                                     Long recipientId,
+                                     Long actorId,
+                                     Long postId,
+                                     Long commentId,
+                                     String postTitle,
+                                     String content) {
+        if (notifiedRecipients.add(recipientId)) {
+            notificationService.notifyPostCommented(recipientId, actorId, postId, commentId, postTitle, content);
+        }
+    }
+
+    private void notifyPostCommentReplied(Set<Long> notifiedRecipients,
+                                          Long recipientId,
+                                          Long actorId,
+                                          Long postId,
+                                          Long commentId,
+                                          String postTitle,
+                                          String content) {
+        if (notifiedRecipients.add(recipientId)) {
+            notificationService.notifyPostCommentReplied(recipientId, actorId, postId, commentId, postTitle, content);
+        }
+    }
+
+    private Set<Long> mentionedUserIds(String content) {
+        Set<String> handles = new LinkedHashSet<>();
+        Matcher matcher = MENTION_PATTERN.matcher(content == null ? "" : content);
+        while (matcher.find()) {
+            handles.add(matcher.group(1).toLowerCase());
+        }
+        if (handles.isEmpty()) {
+            return Set.of();
+        }
+        List<User> users = userMapper.selectMentionCandidates(new ArrayList<>(handles));
+        Set<Long> userIds = new LinkedHashSet<>();
+        for (User user : users) {
+            userIds.add(user.getUserId());
+        }
+        return userIds;
     }
 
     private int safeInt(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private String fallback(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private boolean isBlank(String value) {

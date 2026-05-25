@@ -3,12 +3,14 @@ import { computed, onMounted, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import {
   ArrowLeft,
+  AtSign,
   Bell,
   BookmarkCheck,
   Check,
   CircleHelp,
   Heart,
   MessageCircle,
+  MessageSquareReply,
   RefreshCw,
   UserPlus,
   UserRound
@@ -110,7 +112,13 @@ function notificationIcon(type: string) {
     POST_LIKED: Heart,
     POST_FAVORITED: BookmarkCheck,
     POST_COMMENTED: MessageCircle,
+    COMMENT_REPLIED: MessageSquareReply,
+    COMMENT_LIKED: Heart,
+    COMMENT_MENTIONED: AtSign,
     HELP_ANSWERED: CircleHelp,
+    HELP_ANSWER_REPLIED: MessageSquareReply,
+    HELP_ANSWER_LIKED: Heart,
+    HELP_ANSWER_MENTIONED: AtSign,
     FRIEND_REQUEST: UserPlus
   };
   return icons[type] ?? Bell;

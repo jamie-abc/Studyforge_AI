@@ -8,6 +8,7 @@ import com.studyforge.interaction.vo.CommentVO;
 import com.studyforge.interaction.vo.PostInteractionStateVO;
 import com.studyforge.system.service.AuthService;
 import java.util.List;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,8 +58,10 @@ public class InteractionController {
     }
 
     @GetMapping("/comments")
-    public ApiResponse<List<CommentVO>> comments(@PathVariable("postId") Long postId) {
-        return ApiResponse.success(interactionCommandService.comments(postId));
+    public ApiResponse<List<CommentVO>> comments(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+                                                 @PathVariable("postId") Long postId) {
+        Long viewerId = authService.currentUserId(authorization);
+        return ApiResponse.success(interactionCommandService.comments(postId, viewerId));
     }
 
     @PostMapping("/comments")
@@ -67,5 +70,22 @@ public class InteractionController {
                                           @RequestBody CreateCommentRequest request) {
         Long userId = authService.requireUserId(authorization);
         return ApiResponse.success("commented", interactionCommandService.comment(postId, userId, request));
+    }
+
+    @PostMapping("/comments/{commentId}/likes")
+    public ApiResponse<CommentVO> likeComment(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                              @PathVariable("postId") Long postId,
+                                              @PathVariable("commentId") Long commentId) {
+        Long userId = authService.requireUserId(authorization);
+        return ApiResponse.success(interactionCommandService.likeComment(postId, commentId, userId));
+    }
+
+    @DeleteMapping("/comments/{commentId}")
+    public ApiResponse<Void> deleteComment(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                           @PathVariable("postId") Long postId,
+                                           @PathVariable("commentId") Long commentId) {
+        Long userId = authService.requireUserId(authorization);
+        interactionCommandService.deleteComment(postId, commentId, userId);
+        return ApiResponse.success(null);
     }
 }

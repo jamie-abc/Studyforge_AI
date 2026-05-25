@@ -9,6 +9,7 @@ import com.studyforge.help.vo.HelpAnswerVO;
 import com.studyforge.help.vo.HelpRequestVO;
 import com.studyforge.system.service.AuthService;
 import java.util.List;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,8 +49,10 @@ public class HelpController {
     }
 
     @GetMapping("/{helpId}/answers")
-    public ApiResponse<List<HelpAnswerVO>> answers(@PathVariable("helpId") Long helpId) {
-        return ApiResponse.success(helpRequestService.answers(helpId));
+    public ApiResponse<List<HelpAnswerVO>> answers(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+                                                   @PathVariable("helpId") Long helpId) {
+        Long viewerId = authService.currentUserId(authorization);
+        return ApiResponse.success(helpRequestService.answers(helpId, viewerId));
     }
 
     @PostMapping("/{helpId}/answers")
@@ -58,6 +61,23 @@ public class HelpController {
                                             @RequestBody CreateHelpAnswerRequest request) {
         Long userId = authService.requireUserId(authorization);
         return ApiResponse.success("answered", helpRequestService.answer(helpId, userId, request));
+    }
+
+    @PostMapping("/{helpId}/answers/{answerId}/likes")
+    public ApiResponse<HelpAnswerVO> likeAnswer(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                                @PathVariable("helpId") Long helpId,
+                                                @PathVariable("answerId") Long answerId) {
+        Long userId = authService.requireUserId(authorization);
+        return ApiResponse.success(helpRequestService.likeAnswer(helpId, answerId, userId));
+    }
+
+    @DeleteMapping("/{helpId}/answers/{answerId}")
+    public ApiResponse<Void> deleteAnswer(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                          @PathVariable("helpId") Long helpId,
+                                          @PathVariable("answerId") Long answerId) {
+        Long userId = authService.requireUserId(authorization);
+        helpRequestService.deleteAnswer(helpId, answerId, userId);
+        return ApiResponse.success(null);
     }
 
     @PostMapping("/{helpId}/answers/{answerId}/accept")

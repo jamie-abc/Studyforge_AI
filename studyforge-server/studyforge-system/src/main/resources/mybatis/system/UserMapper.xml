@@ -55,6 +55,23 @@
         LIMIT 1
     </select>
 
+    <select id="selectMentionCandidates" resultMap="UserResultMap">
+        SELECT
+        <include refid="UserColumns"/>
+        FROM users
+        WHERE status = 'ACTIVE'
+          AND (
+            LOWER(username) IN
+            <foreach collection="handles" item="handle" open="(" separator="," close=")">
+                #{handle}
+            </foreach>
+            OR LOWER(display_name) IN
+            <foreach collection="handles" item="handle" open="(" separator="," close=")">
+                #{handle}
+            </foreach>
+          )
+    </select>
+
     <insert id="insert" parameterType="com.studyforge.system.entity.User" useGeneratedKeys="true" keyProperty="userId">
         INSERT INTO users (
             username,

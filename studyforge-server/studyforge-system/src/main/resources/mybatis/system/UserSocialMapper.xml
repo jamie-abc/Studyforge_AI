@@ -255,6 +255,7 @@
             JOIN help_requests h ON h.help_id = ha.help_id
             LEFT JOIN categories cat ON cat.category_id = h.category_id
             WHERE ha.user_id = #{userId}
+              AND ha.status = 'VISIBLE'
 
             UNION ALL
 

@@ -40,9 +40,45 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    public void notifyPostCommentReplied(Long recipientId, Long actorId, Long postId, Long commentId, String postTitle, String content) {
+        create(recipientId, actorId, "COMMENT_REPLIED", "POST", postId, postId, null, commentId, null, null,
+                "有人回复了你的评论", titleOrFallback(postTitle, preview(content)));
+    }
+
+    @Override
+    public void notifyPostCommentLiked(Long recipientId, Long actorId, Long postId, Long commentId, String postTitle) {
+        create(recipientId, actorId, "COMMENT_LIKED", "POST", postId, postId, null, commentId, null, null,
+                "有人点赞了你的评论", titleOrFallback(postTitle, "查看这条评论"));
+    }
+
+    @Override
+    public void notifyPostCommentMentioned(Long recipientId, Long actorId, Long postId, Long commentId, String postTitle, String content) {
+        create(recipientId, actorId, "COMMENT_MENTIONED", "POST", postId, postId, null, commentId, null, null,
+                "有人在评论里提到了你", titleOrFallback(postTitle, preview(content)));
+    }
+
+    @Override
     public void notifyHelpAnswered(Long recipientId, Long actorId, Long helpId, Long answerId, String helpTitle, String content) {
         create(recipientId, actorId, "HELP_ANSWERED", "HELP", helpId, null, helpId, null, answerId, null,
                 "有人回答了你的问题", titleOrFallback(helpTitle, preview(content)));
+    }
+
+    @Override
+    public void notifyHelpAnswerReplied(Long recipientId, Long actorId, Long helpId, Long answerId, String helpTitle, String content) {
+        create(recipientId, actorId, "HELP_ANSWER_REPLIED", "HELP", helpId, null, helpId, null, answerId, null,
+                "有人回复了你的回答", titleOrFallback(helpTitle, preview(content)));
+    }
+
+    @Override
+    public void notifyHelpAnswerLiked(Long recipientId, Long actorId, Long helpId, Long answerId, String helpTitle) {
+        create(recipientId, actorId, "HELP_ANSWER_LIKED", "HELP", helpId, null, helpId, null, answerId, null,
+                "有人点赞了你的回答", titleOrFallback(helpTitle, "查看这条回答"));
+    }
+
+    @Override
+    public void notifyHelpAnswerMentioned(Long recipientId, Long actorId, Long helpId, Long answerId, String helpTitle, String content) {
+        create(recipientId, actorId, "HELP_ANSWER_MENTIONED", "HELP", helpId, null, helpId, null, answerId, null,
+                "有人在回答里提到了你", titleOrFallback(helpTitle, preview(content)));
     }
 
     @Override

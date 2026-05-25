@@ -164,7 +164,7 @@
         u.experience_points AS experiencePoints,
         u.reputation_score AS reputationScore,
         (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.user_id) AS postCount,
-        (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.user_id) AS commentCount,
+        (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.user_id AND c.status = 'VISIBLE') AS commentCount,
         (SELECT COUNT(*) FROM post_favorites f WHERE f.user_id = u.user_id) AS favoriteCount,
         (SELECT COUNT(*) FROM user_follows f WHERE f.following_id = u.user_id AND f.status = 'ACTIVE') AS followerCount,
         u.created_time AS createdTime
@@ -214,7 +214,7 @@
             (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.user_id) AS postCount,
             (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.user_id AND p.status = 'PUBLISHED') AS publishedPostCount,
             (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.user_id AND p.status = 'ARCHIVED') AS archivedPostCount,
-            (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.user_id) AS commentCount,
+            (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.user_id AND c.status = 'VISIBLE') AS commentCount,
             (SELECT COUNT(*) FROM post_likes l WHERE l.user_id = u.user_id) AS likeCount,
             (SELECT COUNT(*) FROM post_favorites f WHERE f.user_id = u.user_id) AS favoriteCount,
             (SELECT COUNT(*) FROM favorite_collections fc WHERE fc.user_id = u.user_id) AS collectionCount,
@@ -227,8 +227,8 @@
             (SELECT COUNT(*) FROM friend_messages fm WHERE fm.sender_id = u.user_id) AS sentMessageCount,
             (SELECT COUNT(*) FROM friend_messages fm WHERE fm.receiver_id = u.user_id) AS receivedMessageCount,
             (SELECT COUNT(*) FROM help_requests h WHERE h.user_id = u.user_id) AS helpRequestCount,
-            (SELECT COUNT(*) FROM help_answers ha WHERE ha.user_id = u.user_id) AS helpAnswerCount,
-            (SELECT COUNT(*) FROM help_answers ha WHERE ha.user_id = u.user_id AND ha.is_accepted = 1) AS acceptedAnswerCount,
+            (SELECT COUNT(*) FROM help_answers ha WHERE ha.user_id = u.user_id AND ha.status = 'VISIBLE') AS helpAnswerCount,
+            (SELECT COUNT(*) FROM help_answers ha WHERE ha.user_id = u.user_id AND ha.status = 'VISIBLE' AND ha.is_accepted = 1) AS acceptedAnswerCount,
             (SELECT COUNT(*) FROM reports r WHERE r.reporter_id = u.user_id) AS reportCount,
             (SELECT COUNT(*) FROM reports r JOIN posts p ON p.post_id = r.post_id WHERE p.author_id = u.user_id) AS reportedPostCount,
             (SELECT COUNT(*) FROM uploaded_files uf WHERE uf.user_id = u.user_id AND uf.status = 'ACTIVE') AS uploadCount,
@@ -238,11 +238,11 @@
             (SELECT COUNT(*) FROM user_tokens ut WHERE ut.user_id = u.user_id AND ut.status = 'ACTIVE' AND ut.expire_time > CURRENT_TIMESTAMP) AS activeTokenCount,
             (SELECT COUNT(*) FROM user_experience_logs el WHERE el.user_id = u.user_id) AS experienceLogCount,
             (SELECT MAX(p.created_time) FROM posts p WHERE p.author_id = u.user_id) AS lastPostTime,
-            (SELECT MAX(c.created_time) FROM comments c WHERE c.user_id = u.user_id) AS lastCommentTime,
+            (SELECT MAX(c.created_time) FROM comments c WHERE c.user_id = u.user_id AND c.status = 'VISIBLE') AS lastCommentTime,
             (SELECT MAX(help_activity.activity_time) FROM (
                 SELECT h.user_id AS user_id, h.created_time AS activity_time FROM help_requests h
                 UNION ALL
-                SELECT ha.user_id AS user_id, ha.created_time AS activity_time FROM help_answers ha
+                SELECT ha.user_id AS user_id, ha.created_time AS activity_time FROM help_answers ha WHERE ha.status = 'VISIBLE'
             ) help_activity WHERE help_activity.user_id = u.user_id) AS lastHelpTime,
             (SELECT MAX(al.created_time) FROM ai_logs al WHERE al.user_id = u.user_id) AS lastAiCallTime,
             (SELECT MAX(vr.created_time) FROM voice_records vr WHERE vr.user_id = u.user_id) AS lastVoiceTime,

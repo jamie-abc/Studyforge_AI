@@ -27,11 +27,18 @@ import { formatMarkdown as requestMarkdownFormat, generateCover } from '@/api/ai
 import { createPost, getPostDetail, updatePost } from '@/api/posts';
 import { uploadImage } from '@/api/uploads';
 import LoadingState from '@/components/LoadingState.vue';
+import MentionTextarea from '@/components/MentionTextarea.vue';
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
 
 type EditorMode = 'write' | 'preview' | 'split';
+type MentionTextareaExpose = {
+  focus: () => void;
+  setSelectionRange: (start: number, end: number) => void;
+  readonly selectionStart: number;
+  readonly selectionEnd: number;
+};
 
 const DRAFT_KEY = 'studyforge.publish.markdown.draft';
 const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
@@ -50,7 +57,7 @@ const errorMessage = ref('');
 const savedMessage = ref('');
 const coverGeneratedMessage = ref('');
 const mode = ref<EditorMode>('split');
-const editorRef = ref<HTMLTextAreaElement | null>(null);
+const editorRef = ref<MentionTextareaExpose | null>(null);
 const coverDragActive = ref(false);
 const editorDragActive = ref(false);
 const restoring = ref(false);
@@ -608,7 +615,7 @@ watch(
         <div class="markdown-workbench" :class="`mode-${mode}`">
           <label v-show="mode !== 'preview'" class="markdown-source">
             <span>正文 Markdown</span>
-            <textarea
+            <MentionTextarea
               ref="editorRef"
               v-model="form.content"
               required

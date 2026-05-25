@@ -219,17 +219,39 @@ CREATE TABLE IF NOT EXISTS uploaded_files (
 CREATE TABLE IF NOT EXISTS comments (
     comment_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     post_id BIGINT UNSIGNED NOT NULL,
+    parent_comment_id BIGINT UNSIGNED NULL,
     user_id BIGINT UNSIGNED NOT NULL,
     language_code VARCHAR(16) NOT NULL DEFAULT 'zh_CN',
     content TEXT NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'VISIBLE',
+    floor_no INT UNSIGNED NOT NULL DEFAULT 0,
+    like_count INT UNSIGNED NOT NULL DEFAULT 0,
     created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_comments_post_created (post_id, created_time DESC),
+    KEY idx_comments_post_floor (post_id, floor_no),
+    KEY idx_comments_parent_created (parent_comment_id, created_time ASC),
     KEY idx_comments_user_created (user_id, created_time DESC),
     CONSTRAINT fk_comments_post_id FOREIGN KEY (post_id) REFERENCES posts (post_id) ON DELETE CASCADE,
+    CONSTRAINT fk_comments_parent_id FOREIGN KEY (parent_comment_id) REFERENCES comments (comment_id) ON DELETE SET NULL,
     CONSTRAINT fk_comments_user_id FOREIGN KEY (user_id) REFERENCES users (user_id)
 ) ENGINE=InnoDB COMMENT='Post comments';
+
+ALTER TABLE comments
+    ADD COLUMN IF NOT EXISTS parent_comment_id BIGINT UNSIGNED NULL AFTER post_id,
+    ADD COLUMN IF NOT EXISTS floor_no INT UNSIGNED NOT NULL DEFAULT 0 AFTER status,
+    ADD COLUMN IF NOT EXISTS like_count INT UNSIGNED NOT NULL DEFAULT 0 AFTER floor_no;
+
+CREATE TABLE IF NOT EXISTS comment_likes (
+    comment_like_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    comment_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_comment_likes_comment_user (comment_id, user_id),
+    KEY idx_comment_likes_user_created (user_id, created_time DESC),
+    CONSTRAINT fk_comment_likes_comment_id FOREIGN KEY (comment_id) REFERENCES comments (comment_id) ON DELETE CASCADE,
+    CONSTRAINT fk_comment_likes_user_id FOREIGN KEY (user_id) REFERENCES users (user_id)
+) ENGINE=InnoDB COMMENT='Post comment likes';
 
 CREATE TABLE IF NOT EXISTS post_likes (
     like_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -359,16 +381,40 @@ CREATE TABLE IF NOT EXISTS help_requests (
 CREATE TABLE IF NOT EXISTS help_answers (
     answer_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     help_id BIGINT UNSIGNED NOT NULL,
+    parent_answer_id BIGINT UNSIGNED NULL,
     user_id BIGINT UNSIGNED NOT NULL,
     content TEXT NOT NULL,
     is_accepted TINYINT(1) NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'VISIBLE',
+    floor_no INT UNSIGNED NOT NULL DEFAULT 0,
+    like_count INT UNSIGNED NOT NULL DEFAULT 0,
     created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_help_answers_help_created (help_id, created_time DESC),
+    KEY idx_help_answers_help_floor (help_id, floor_no),
+    KEY idx_help_answers_parent_created (parent_answer_id, created_time ASC),
     KEY idx_help_answers_user_created (user_id, created_time DESC),
     CONSTRAINT fk_help_answers_help_id FOREIGN KEY (help_id) REFERENCES help_requests (help_id) ON DELETE CASCADE,
+    CONSTRAINT fk_help_answers_parent_id FOREIGN KEY (parent_answer_id) REFERENCES help_answers (answer_id) ON DELETE SET NULL,
     CONSTRAINT fk_help_answers_user_id FOREIGN KEY (user_id) REFERENCES users (user_id)
 ) ENGINE=InnoDB COMMENT='Answers for help requests';
+
+ALTER TABLE help_answers
+    ADD COLUMN IF NOT EXISTS parent_answer_id BIGINT UNSIGNED NULL AFTER help_id,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'VISIBLE' AFTER is_accepted,
+    ADD COLUMN IF NOT EXISTS floor_no INT UNSIGNED NOT NULL DEFAULT 0 AFTER status,
+    ADD COLUMN IF NOT EXISTS like_count INT UNSIGNED NOT NULL DEFAULT 0 AFTER floor_no;
+
+CREATE TABLE IF NOT EXISTS help_answer_likes (
+    answer_like_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    answer_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_help_answer_likes_answer_user (answer_id, user_id),
+    KEY idx_help_answer_likes_user_created (user_id, created_time DESC),
+    CONSTRAINT fk_help_answer_likes_answer_id FOREIGN KEY (answer_id) REFERENCES help_answers (answer_id) ON DELETE CASCADE,
+    CONSTRAINT fk_help_answer_likes_user_id FOREIGN KEY (user_id) REFERENCES users (user_id)
+) ENGINE=InnoDB COMMENT='Help answer likes';
 
 CREATE TABLE IF NOT EXISTS notifications (
     notification_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,

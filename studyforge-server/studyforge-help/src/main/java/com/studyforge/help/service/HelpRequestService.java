@@ -17,7 +17,11 @@ public interface HelpRequestService {
 
     HelpAnswerVO answer(Long helpId, Long userId, CreateHelpAnswerRequest request);
 
-    List<HelpAnswerVO> answers(Long helpId);
+    List<HelpAnswerVO> answers(Long helpId, Long viewerId);
+
+    HelpAnswerVO likeAnswer(Long helpId, Long answerId, Long userId);
+
+    void deleteAnswer(Long helpId, Long answerId, Long userId);
 
     void accept(Long helpId, Long answerId, Long userId);
 }

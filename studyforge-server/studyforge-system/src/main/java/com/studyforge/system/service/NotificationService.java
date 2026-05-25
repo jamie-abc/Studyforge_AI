@@ -10,7 +10,19 @@ public interface NotificationService {
 
     void notifyPostCommented(Long recipientId, Long actorId, Long postId, Long commentId, String postTitle, String content);
 
+    void notifyPostCommentReplied(Long recipientId, Long actorId, Long postId, Long commentId, String postTitle, String content);
+
+    void notifyPostCommentLiked(Long recipientId, Long actorId, Long postId, Long commentId, String postTitle);
+
+    void notifyPostCommentMentioned(Long recipientId, Long actorId, Long postId, Long commentId, String postTitle, String content);
+
     void notifyHelpAnswered(Long recipientId, Long actorId, Long helpId, Long answerId, String helpTitle, String content);
+
+    void notifyHelpAnswerReplied(Long recipientId, Long actorId, Long helpId, Long answerId, String helpTitle, String content);
+
+    void notifyHelpAnswerLiked(Long recipientId, Long actorId, Long helpId, Long answerId, String helpTitle);
+
+    void notifyHelpAnswerMentioned(Long recipientId, Long actorId, Long helpId, Long answerId, String helpTitle, String content);
 
     void notifyFriendRequest(Long recipientId, Long actorId, Long friendRequestId, String message);
 
