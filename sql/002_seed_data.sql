@@ -176,7 +176,7 @@ SELECT 'ai.base_url', 'https://api.siliconflow.cn/v1', 0, u.user_id FROM users u
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), secret_flag = VALUES(secret_flag), updated_by = VALUES(updated_by);
 
 INSERT INTO integration_settings (setting_key, setting_value, secret_flag, updated_by)
-SELECT 'ai.api_key', 'sk-sumhznadchbatbcaklzlttfzwocmqixrdaiicohoimpiuvpd', 1, u.user_id FROM users u WHERE u.username = 'ops_admin'
+SELECT 'ai.api_key', '', 1, u.user_id FROM users u WHERE u.username = 'ops_admin'
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), secret_flag = VALUES(secret_flag), updated_by = VALUES(updated_by);
 
 INSERT INTO integration_settings (setting_key, setting_value, secret_flag, updated_by)
@@ -188,7 +188,7 @@ SELECT 'image.base_url', 'https://api.hiyo.top/v1', 0, u.user_id FROM users u WH
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), secret_flag = VALUES(secret_flag), updated_by = VALUES(updated_by);
 
 INSERT INTO integration_settings (setting_key, setting_value, secret_flag, updated_by)
-SELECT 'image.api_key', 'sk-j1gAfU3lBu10wJrOoe0tdcleAd0KyWFa1FSSozbMqvHo31Hh', 1, u.user_id FROM users u WHERE u.username = 'ops_admin'
+SELECT 'image.api_key', '', 1, u.user_id FROM users u WHERE u.username = 'ops_admin'
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), secret_flag = VALUES(secret_flag), updated_by = VALUES(updated_by);
 
 INSERT INTO integration_settings (setting_key, setting_value, secret_flag, updated_by)
@@ -204,7 +204,7 @@ SELECT 'voice.base_url', 'https://api.siliconflow.cn/v1', 0, u.user_id FROM user
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), secret_flag = VALUES(secret_flag), updated_by = VALUES(updated_by);
 
 INSERT INTO integration_settings (setting_key, setting_value, secret_flag, updated_by)
-SELECT 'voice.api_key', 'sk-sumhznadchbatbcaklzlttfzwocmqixrdaiicohoimpiuvpd', 1, u.user_id FROM users u WHERE u.username = 'ops_admin'
+SELECT 'voice.api_key', '', 1, u.user_id FROM users u WHERE u.username = 'ops_admin'
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), secret_flag = VALUES(secret_flag), updated_by = VALUES(updated_by);
 
 INSERT INTO integration_settings (setting_key, setting_value, secret_flag, updated_by)

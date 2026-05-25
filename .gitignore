@@ -11,3 +11,8 @@ coverage/
 *.war
 *.jar
 *.tar.gz
+uploads/
+api配置.md
+.env
+.env.*
+!.env.example
