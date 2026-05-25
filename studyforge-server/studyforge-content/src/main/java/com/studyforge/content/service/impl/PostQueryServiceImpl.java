@@ -64,7 +64,9 @@ public class PostQueryServiceImpl implements PostQueryService {
                 safeInt(post.getFavoriteCount()),
                 safeInt(post.getCommentCount()),
                 safeInt(post.getViewCount()),
-                toDouble(post.getHotScore())
+                toDouble(post.getHotScore()),
+                post.getCreatedTime(),
+                post.getUpdatedTime()
         );
     }
 
@@ -158,7 +160,9 @@ public class PostQueryServiceImpl implements PostQueryService {
                 safeInt(post.getFavoriteCount()),
                 safeInt(post.getCommentCount()),
                 safeInt(post.getViewCount()),
-                toDouble(post.getHotScore())
+                toDouble(post.getHotScore()),
+                post.getCreatedTime(),
+                post.getUpdatedTime()
         );
     }
 

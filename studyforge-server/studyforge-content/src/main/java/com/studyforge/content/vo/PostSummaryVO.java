@@ -1,5 +1,7 @@
 package com.studyforge.content.vo;
 
+import java.time.LocalDateTime;
+
 public record PostSummaryVO(Long postId,
                             Long authorId,
                             String authorName,
@@ -13,5 +15,7 @@ public record PostSummaryVO(Long postId,
                             int favoriteCount,
                             int commentCount,
                             int viewCount,
-                            double hotScore) {
+                            double hotScore,
+                            LocalDateTime createdTime,
+                            LocalDateTime updatedTime) {
 }

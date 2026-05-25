@@ -10,12 +10,15 @@ import com.studyforge.admin.service.CommunityAdminService;
 import com.studyforge.admin.vo.AdminOverviewVO;
 import com.studyforge.admin.vo.AdminPostVO;
 import com.studyforge.admin.vo.AdminReportVO;
+import com.studyforge.admin.vo.AdminUserDetailVO;
 import com.studyforge.admin.vo.AdminUserVO;
 import com.studyforge.admin.vo.ReportSubmissionVO;
 import com.studyforge.common.exception.BizException;
 import com.studyforge.common.exception.ErrorCode;
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -153,6 +156,15 @@ public class CommunityAdminServiceImpl implements CommunityAdminService {
     }
 
     @Override
+    public AdminUserDetailVO userDetail(Long userId) {
+        Map<String, Object> row = adminCommunityMapper.selectUserDetailById(userId);
+        if (row == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "user not found");
+        }
+        return toUserDetail(row);
+    }
+
+    @Override
     @Transactional
     public AdminUserVO updateUserStatus(Long adminId, Long userId, UserStatusRequest request) {
         String status = normalizeUserStatus(request == null ? null : request.status());
@@ -223,6 +235,57 @@ public class CommunityAdminServiceImpl implements CommunityAdminService {
                 intValue(row, "favoriteCount"),
                 intValue(row, "followerCount"),
                 timeValue(row.get("createdTime"))
+        );
+    }
+
+    private AdminUserDetailVO toUserDetail(Map<String, Object> row) {
+        return new AdminUserDetailVO(
+                longValue(row.get("userId")),
+                stringValue(row.get("username")),
+                stringValue(row.get("displayName")),
+                stringValue(row.get("email")),
+                stringValue(row.get("role")),
+                stringValue(row.get("status")),
+                stringValue(row.get("bio")),
+                stringValue(row.get("avatarUrl")),
+                stringValue(row.get("bannerUrl")),
+                intValue(row, "communityLevel"),
+                intValue(row, "experiencePoints"),
+                dateValue(row.get("lastLoginRewardDate")),
+                intValue(row, "reputationScore"),
+                intValue(row, "postCount"),
+                intValue(row, "publishedPostCount"),
+                intValue(row, "archivedPostCount"),
+                intValue(row, "commentCount"),
+                intValue(row, "likeCount"),
+                intValue(row, "favoriteCount"),
+                intValue(row, "collectionCount"),
+                intValue(row, "historyCount"),
+                intValue(row, "followerCount"),
+                intValue(row, "followingCount"),
+                intValue(row, "friendCount"),
+                intValue(row, "incomingFriendRequestCount"),
+                intValue(row, "outgoingFriendRequestCount"),
+                intValue(row, "sentMessageCount"),
+                intValue(row, "receivedMessageCount"),
+                intValue(row, "helpRequestCount"),
+                intValue(row, "helpAnswerCount"),
+                intValue(row, "acceptedAnswerCount"),
+                intValue(row, "reportCount"),
+                intValue(row, "reportedPostCount"),
+                intValue(row, "uploadCount"),
+                intValue(row, "aiCallCount"),
+                intValue(row, "aiSuccessCount"),
+                intValue(row, "voiceRecordCount"),
+                intValue(row, "activeTokenCount"),
+                intValue(row, "experienceLogCount"),
+                timeValue(row.get("lastPostTime")),
+                timeValue(row.get("lastCommentTime")),
+                timeValue(row.get("lastHelpTime")),
+                timeValue(row.get("lastAiCallTime")),
+                timeValue(row.get("lastVoiceTime")),
+                timeValue(row.get("createdTime")),
+                timeValue(row.get("updatedTime"))
         );
     }
 
@@ -333,5 +396,15 @@ public class CommunityAdminServiceImpl implements CommunityAdminService {
             return timestamp.toLocalDateTime();
         }
         return null;
+    }
+
+    private LocalDate dateValue(Object value) {
+        if (value instanceof LocalDate date) {
+            return date;
+        }
+        if (value instanceof Date date) {
+            return date.toLocalDate();
+        }
+        return value == null ? null : LocalDate.parse(value.toString());
     }
 }

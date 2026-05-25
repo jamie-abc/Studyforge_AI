@@ -14,6 +14,7 @@ import com.studyforge.system.service.UserProfileService;
 import com.studyforge.system.vo.FriendMessageVO;
 import com.studyforge.system.vo.FriendRequestVO;
 import com.studyforge.system.vo.SocialUserVO;
+import com.studyforge.system.vo.UserActivityVO;
 import com.studyforge.system.vo.UserProfileVO;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -72,6 +73,15 @@ public class UserController {
                                                   @RequestParam(name = "languageCode", defaultValue = "zh_CN") String languageCode,
                                                   @RequestParam(name = "limit", defaultValue = "30") int limit) {
         return ApiResponse.success(postQueryService.listByAuthor(userId, languageCode, limit));
+    }
+
+    @GetMapping("/{userId}/activities")
+    public ApiResponse<List<UserActivityVO>> activities(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+                                                        @PathVariable("userId") Long userId,
+                                                        @RequestParam(name = "languageCode", defaultValue = "zh_CN") String languageCode,
+                                                        @RequestParam(name = "limit", defaultValue = "40") int limit) {
+        Long viewerId = authService.currentUserId(authorization);
+        return ApiResponse.success(userProfileService.listActivities(viewerId, userId, languageCode, limit));
     }
 
     @PostMapping("/{userId}/follow")

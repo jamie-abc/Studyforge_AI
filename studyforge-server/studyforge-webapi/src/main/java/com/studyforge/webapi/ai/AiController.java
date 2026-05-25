@@ -3,6 +3,7 @@ package com.studyforge.webapi.ai;
 import com.studyforge.ai.entity.AiLog;
 import com.studyforge.ai.mapper.AiLogMapper;
 import com.studyforge.ai.service.AiService;
+import com.studyforge.ai.service.AiService.GeneratedCover;
 import com.studyforge.ai.vo.AiLogVO;
 import com.studyforge.ai.vo.AiResultVO;
 import com.studyforge.common.api.ApiResponse;
@@ -12,7 +13,14 @@ import com.studyforge.common.exception.ErrorCode;
 import com.studyforge.content.service.PostQueryService;
 import com.studyforge.content.vo.PostDetailVO;
 import com.studyforge.system.service.AuthService;
+import com.studyforge.system.service.UploadedFileService;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,15 +37,22 @@ public class AiController {
     private final AiLogMapper aiLogMapper;
     private final PostQueryService postQueryService;
     private final AuthService authService;
+    private final UploadedFileService uploadedFileService;
+    private final Path imageRoot;
 
     public AiController(AiService aiService,
                         AiLogMapper aiLogMapper,
                         PostQueryService postQueryService,
-                        AuthService authService) {
+                        AuthService authService,
+                        UploadedFileService uploadedFileService) {
         this.aiService = aiService;
         this.aiLogMapper = aiLogMapper;
         this.postQueryService = postQueryService;
         this.authService = authService;
+        this.uploadedFileService = uploadedFileService;
+        Path workingDirectory = Paths.get(System.getProperty("user.dir")).toAbsolutePath();
+        Path projectRoot = workingDirectory.getParent() == null ? workingDirectory : workingDirectory.getParent();
+        this.imageRoot = projectRoot.resolve("uploads").resolve("images").normalize();
     }
 
     @PostMapping("/posts/{postId}/summary")
@@ -96,6 +111,47 @@ public class AiController {
         String text = aiService.formatMarkdown(source, promptLanguage);
         log(userId, null, "MARKDOWN_FORMAT", source, text, 1);
         return ApiResponse.success(new AiResultVO("MARKDOWN_FORMAT", promptLanguage, text));
+    }
+
+    @PostMapping("/covers/generate")
+    public ApiResponse<AiCoverResultVO> generateCover(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                                      @RequestBody AiCoverRequest request) throws IOException {
+        Long userId = authService.requireUserId(authorization);
+        if (request == null || (isBlank(request.title()) && isBlank(request.summary()) && isBlank(request.content()))) {
+            throw new BizException(ErrorCode.VALIDATION_ERROR, "title, summary or content is required");
+        }
+
+        String title = trim(request.title(), 300);
+        String summary = trim(request.summary(), 800);
+        String content = trim(request.content(), 12000);
+        String language = isBlank(request.languageCode()) ? "zh_CN" : request.languageCode();
+        GeneratedCover cover = aiService.generateCover(title, summary, content, language);
+        if (cover == null || isBlank(cover.imageDataBase64())) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "cover generation failed");
+        }
+
+        byte[] imageBytes;
+        try {
+            imageBytes = Base64.getDecoder().decode(cover.imageDataBase64());
+        } catch (IllegalArgumentException exception) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "image data is invalid");
+        }
+        if (imageBytes.length == 0 || imageBytes.length > 12L * 1024L * 1024L) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "generated image size is invalid");
+        }
+
+        Files.createDirectories(imageRoot);
+        String filename = UUID.randomUUID() + ".png";
+        Path target = imageRoot.resolve(filename).normalize();
+        if (!target.startsWith(imageRoot)) {
+            throw new BizException(ErrorCode.VALIDATION_ERROR, "invalid file path");
+        }
+        Files.write(target, imageBytes);
+
+        String url = "/api/v1/files/images/" + filename;
+        uploadedFileService.recordImage(userId, "ai-generated-cover.png", filename, url, "image/png", imageBytes.length);
+        log(userId, null, "COVER_IMAGE", cover.prompt(), cover.visualBrief() + "\n" + url, 1);
+        return ApiResponse.success(new AiCoverResultVO(url, cover.visualBrief()));
     }
 
     @GetMapping("/me/review-cards")
@@ -160,5 +216,15 @@ public class AiController {
                                           String languageCode,
                                           String contentLanguageCode,
                                           String promptLanguageCode) {
+    }
+
+    public record AiCoverRequest(String title,
+                                 String summary,
+                                 String content,
+                                 String languageCode,
+                                 String promptLanguageCode) {
+    }
+
+    public record AiCoverResultVO(String coverImageUrl, String visualBrief) {
     }
 }

@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.Param;
 public interface PostMapper {
     Post selectById(@Param("postId") Long postId);
 
+    String selectOriginalTitle(@Param("postId") Long postId);
+
     List<Post> selectPublishedByHotScore(@Param("limit") int limit);
 
     List<Post> selectPublished(@Param("categoryCode") String categoryCode,

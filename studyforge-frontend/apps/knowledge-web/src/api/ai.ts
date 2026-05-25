@@ -1,5 +1,5 @@
 import { http, unwrap } from '@/api/http';
-import type { AiLogItem, AiResult } from '@/types/api';
+import type { AiCoverResult, AiLogItem, AiResult } from '@/types/api';
 
 export function generateSummary(postId: number | string, contentLanguageCode: string, promptLanguageCode: string) {
   return unwrap<AiResult>(
@@ -38,6 +38,16 @@ export function formatMarkdown(content: string, contentLanguageCode: string, pro
       promptLanguageCode
     })
   );
+}
+
+export function generateCover(payload: {
+  title: string;
+  summary: string;
+  content: string;
+  languageCode: string;
+  promptLanguageCode: string;
+}) {
+  return unwrap<AiCoverResult>(http.post('/ai/covers/generate', payload));
 }
 
 export function getMyReviewCards() {

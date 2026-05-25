@@ -1,15 +1,8 @@
 :root {
   color-scheme: light;
-  font-family:
-    Inter,
-    "Noto Sans SC",
-    "Source Han Sans SC",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  --font-sans: Inter, "SF Pro Text", "Segoe UI Variable", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: Inter, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
   --bg: #f5f7f6;
   --surface: #ffffff;
   --surface-muted: #f1f5f4;
@@ -41,12 +34,16 @@ body,
 body {
   margin: 0;
   background:
-    linear-gradient(90deg, rgba(15, 118, 110, 0.035) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(37, 99, 235, 0.03) 1px, transparent 1px),
-    linear-gradient(180deg, #f8fbfa 0%, #f4f7f6 44%, #f7f8fb 100%);
+    radial-gradient(circle at 10% 8%, rgba(15, 118, 110, 0.06), transparent 24%),
+    radial-gradient(circle at 86% 0%, rgba(37, 99, 235, 0.05), transparent 22%),
+    linear-gradient(90deg, rgba(15, 118, 110, 0.022) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(37, 99, 235, 0.018) 1px, transparent 1px),
+    linear-gradient(180deg, #fbfcfb 0%, #f5f8f7 44%, #f7f8fb 100%);
   background-size:
-    34px 34px,
-    34px 34px,
+    auto,
+    auto,
+    42px 42px,
+    42px 42px,
     auto;
   color: var(--text);
   letter-spacing: 0;
@@ -82,7 +79,8 @@ button {
   min-height: 100vh;
   padding: 22px 18px;
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.12), transparent 42%),
+    linear-gradient(150deg, rgba(37, 99, 235, 0.15), transparent 34%),
+    linear-gradient(180deg, rgba(15, 118, 110, 0.12), transparent 52%),
     #101820;
   color: #eef4f7;
   border-right: 1px solid #1f2a35;
@@ -101,7 +99,9 @@ button {
 }
 
 .brand-lockup strong {
+  font-family: var(--font-display);
   font-size: 15px;
+  font-weight: 840;
   line-height: 1.2;
 }
 
@@ -194,9 +194,10 @@ button {
   gap: 16px;
   min-height: 68px;
   padding: 0 28px;
-  background: rgba(255, 255, 255, 0.92);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 252, 252, 0.9));
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.045);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.055);
   backdrop-filter: blur(10px);
 }
 
@@ -304,9 +305,11 @@ button {
 .section-heading h1,
 .section-heading h2 {
   margin: 0;
+  font-family: var(--font-display);
   color: var(--text);
-  font-weight: 760;
+  font-weight: 830;
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .section-heading h1 {
@@ -1097,6 +1100,164 @@ tr.selected td {
   border-top: 1px solid var(--border);
 }
 
+.user-management-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(380px, 0.75fr);
+}
+
+.user-preview {
+  gap: 18px;
+}
+
+.user-preview-head {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.admin-user-avatar {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-muted);
+  color: var(--primary);
+}
+
+.admin-user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-preview-head h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.user-preview-head p,
+.user-bio {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.preview-header-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.user-bio {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.user-detail-section {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.user-detail-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.user-detail-section h3 svg {
+  color: var(--primary);
+}
+
+.user-detail-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+.user-detail-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border);
+}
+
+.user-detail-list div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.user-detail-list dt,
+.user-stat-grid span,
+.user-stat-grid small {
+  color: var(--text-muted);
+}
+
+.user-detail-list dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 760;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.user-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.user-stat-grid div {
+  display: grid;
+  gap: 5px;
+  min-height: 86px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.user-stat-grid strong {
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.user-stat-grid span,
+.user-stat-grid small {
+  font-size: 12px;
+}
+
+.user-activity-list {
+  display: grid;
+  gap: 9px;
+}
+
+.user-activity-list span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.user-activity-list svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
 .markdown-body {
   color: #263241;
   line-height: 1.86;
@@ -1326,7 +1487,8 @@ tr.selected td {
   .login-stack,
   .metric-grid,
   .settings-grid,
-  .management-grid {
+  .management-grid,
+  .user-stat-grid {
     grid-template-columns: 1fr;
   }
 

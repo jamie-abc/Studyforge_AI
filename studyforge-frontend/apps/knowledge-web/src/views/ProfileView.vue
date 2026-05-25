@@ -1,15 +1,33 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { BookOpen, BookmarkCheck, Heart, MessageCircle, PenLine, RefreshCw, Settings, UserCheck, UserPlus, UserRound, Users } from '@lucide/vue';
+import {
+  BookOpen,
+  BookmarkCheck,
+  CircleHelp,
+  Eye,
+  Heart,
+  MessageCircle,
+  MessageSquareReply,
+  PenLine,
+  RefreshCw,
+  Settings,
+  Star,
+  UserCheck,
+  UserPlus,
+  UserRound,
+  Users
+} from '@lucide/vue';
 import { ApiError } from '@/api/http';
-import { followUser, getFriends, getMyProfile, getUserPosts, getUserProfile, reviewFriendRequest, sendFriendRequest, unfollowUser } from '@/api/users';
+import { followUser, getFriends, getMyProfile, getUserActivities, getUserPosts, getUserProfile, reviewFriendRequest, sendFriendRequest, unfollowUser } from '@/api/users';
 import EmptyState from '@/components/EmptyState.vue';
 import KnowledgeCard from '@/components/KnowledgeCard.vue';
 import LoadingState from '@/components/LoadingState.vue';
+import MarkdownRenderer from '@/components/MarkdownRenderer.vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
-import type { PostSummary, SocialUser, TopicCategory, UserProfile } from '@/types/api';
+import type { PostSummary, SocialUser, TopicCategory, UserActivity, UserProfile } from '@/types/api';
+import { formatShortDateTime } from '@/utils/date';
 
 type ProfileTab = 'activity' | 'posts' | 'friends';
 
@@ -19,6 +37,7 @@ const sessionStore = useSessionStore();
 
 const profile = ref<UserProfile | null>(null);
 const posts = ref<PostSummary[]>([]);
+const activities = ref<UserActivity[]>([]);
 const friends = ref<SocialUser[]>([]);
 const loading = ref(false);
 const actionLoading = ref(false);
@@ -52,6 +71,7 @@ async function loadProfile() {
   if (isMeRoute.value && !sessionStore.isAuthenticated) {
     profile.value = null;
     posts.value = [];
+    activities.value = [];
     friends.value = [];
     return;
   }
@@ -65,12 +85,14 @@ async function loadProfile() {
   try {
     const profileData = isMeRoute.value ? await getMyProfile() : await getUserProfile(targetUserId.value);
     profile.value = profileData;
-    const [postData, friendData] = await Promise.all([
+    const [postData, friendData, activityData] = await Promise.all([
       getUserPosts(profileData.userId, preferencesStore.languageCode),
-      getFriends(profileData.userId)
+      getFriends(profileData.userId),
+      getUserActivities(profileData.userId, preferencesStore.languageCode)
     ]);
     posts.value = postData;
     friends.value = friendData;
+    activities.value = activityData;
   } catch (error) {
     if (error instanceof ApiError && error.code === 4010) {
       await sessionStore.logout();
@@ -81,6 +103,55 @@ async function loadProfile() {
   } finally {
     loading.value = false;
   }
+}
+
+function formatActivityTime(value: UserActivity['createdTime']) {
+  return formatShortDateTime(value, preferencesStore.languageCode);
+}
+
+function activityMeta(activity: UserActivity) {
+  const map: Record<string, { label: string; icon: typeof PenLine; tone: string }> = {
+    POST_PUBLISHED: { label: '发布了帖子', icon: PenLine, tone: 'publish' },
+    HELP_ASKED: { label: '提出了问题', icon: CircleHelp, tone: 'help' },
+    HELP_ANSWERED: { label: '回答了问题', icon: MessageSquareReply, tone: 'answer' },
+    COMMENTED: { label: '评论了帖子', icon: MessageCircle, tone: 'comment' },
+    LIKED_POST: { label: '点赞了帖子', icon: Heart, tone: 'like' },
+    FAVORITED_POST: { label: '收藏了帖子', icon: Star, tone: 'favorite' }
+  };
+  return map[activity.activityType] ?? { label: '更新了动态', icon: BookOpen, tone: 'default' };
+}
+
+function activityTitle(activity: UserActivity) {
+  return activity.title || (activity.targetType === 'HELP' ? '查看这个问题' : '查看这篇内容');
+}
+
+function categoryLabel(code: string) {
+  if (!code) {
+    return '';
+  }
+  return categories[code]?.name ?? code;
+}
+
+function languageLabel(code: string) {
+  const labels: Record<string, string> = {
+    zh_CN: '中文',
+    en_US: 'English'
+  };
+  return labels[code] ?? code;
+}
+
+function activityChipText(activity: UserActivity) {
+  return [categoryLabel(activity.categoryCode), languageLabel(activity.languageCode)].filter(Boolean).join(' · ');
+}
+
+function activityTarget(activity: UserActivity) {
+  if (activity.postId) {
+    return { path: `/posts/${activity.postId}`, query: { language: activity.languageCode || preferencesStore.languageCode } };
+  }
+  if (activity.helpId) {
+    return { path: '/help', query: { helpId: activity.helpId } };
+  }
+  return { path: '/knowledge' };
 }
 
 async function toggleFollow() {
@@ -264,27 +335,49 @@ watch(
       </nav>
 
       <section v-if="activeTab === 'activity'" class="profile-content-grid">
-        <div class="activity-feed">
-          <article v-for="(post, index) in posts" :key="post.postId" class="activity-post">
-            <div class="activity-author">
-              <img v-if="profile.avatarUrl" :src="profile.avatarUrl" alt="" />
-              <UserRound v-else :size="18" />
-              <div>
-                <strong>{{ profile.displayName }}</strong>
-                <span>Lv.{{ profile.communityLevel }}</span>
-              </div>
+        <div class="activity-timeline">
+          <article v-for="activity in activities" :key="activity.activityKey" class="timeline-item" :class="`tone-${activityMeta(activity).tone}`">
+            <div class="timeline-rail">
+              <component :is="activityMeta(activity).icon" :size="18" />
             </div>
-            <h2>{{ post.title }}</h2>
-            <p>{{ post.summary }}</p>
-            <img v-if="post.coverImageUrl" class="activity-cover" :src="post.coverImageUrl" alt="" loading="lazy" />
-            <footer>
-              <span><BookOpen :size="15" />{{ post.viewCount }}</span>
-              <span><MessageCircle :size="15" />{{ post.commentCount }}</span>
-              <span><Heart :size="15" />{{ post.favoriteCount }}</span>
-              <RouterLink :to="{ path: `/posts/${post.postId}`, query: { language: post.languageCode } }">打开</RouterLink>
-            </footer>
+
+            <div class="timeline-card">
+              <header class="timeline-header">
+                <div class="activity-author">
+                  <img v-if="profile.avatarUrl" :src="profile.avatarUrl" alt="" />
+                  <UserRound v-else :size="18" />
+                  <div>
+                    <strong>{{ profile.displayName }}</strong>
+                    <span>{{ activityMeta(activity).label }} · {{ formatActivityTime(activity.createdTime) }}</span>
+                  </div>
+                </div>
+                <span v-if="activityChipText(activity)" class="timeline-chip">{{ activityChipText(activity) }}</span>
+              </header>
+
+              <RouterLink class="timeline-title" :to="activityTarget(activity)">
+                {{ activityTitle(activity) }}
+              </RouterLink>
+
+              <div v-if="activity.content" class="timeline-quote">
+                <MarkdownRenderer :content="activity.content" />
+              </div>
+              <p v-else class="timeline-summary">{{ activity.summary }}</p>
+
+              <img v-if="activity.coverImageUrl" class="activity-cover" :src="activity.coverImageUrl" alt="" loading="lazy" />
+
+              <footer v-if="activity.postId" class="timeline-stats">
+                <span><Heart :size="15" />{{ activity.likeCount }}</span>
+                <span><BookmarkCheck :size="15" />{{ activity.favoriteCount }}</span>
+                <span><MessageCircle :size="15" />{{ activity.commentCount }}</span>
+                <span><Eye :size="15" />{{ activity.viewCount }}</span>
+                <RouterLink :to="activityTarget(activity)">打开</RouterLink>
+              </footer>
+              <footer v-else class="timeline-stats">
+                <RouterLink :to="activityTarget(activity)">查看求助</RouterLink>
+              </footer>
+            </div>
           </article>
-          <EmptyState v-if="posts.length === 0" title="还没有动态" description="发布文章或参与讨论后，会在这里形成个人动态。" />
+          <EmptyState v-if="activities.length === 0" title="还没有动态" description="发帖、提问、回答、评论、点赞和收藏后，会在这里形成动态。" />
         </div>
 
         <aside class="profile-side-panel">

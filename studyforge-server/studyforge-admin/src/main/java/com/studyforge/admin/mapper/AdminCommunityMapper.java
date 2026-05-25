@@ -33,6 +33,8 @@ public interface AdminCommunityMapper {
 
     Map<String, Object> selectUserById(@Param("userId") Long userId);
 
+    Map<String, Object> selectUserDetailById(@Param("userId") Long userId);
+
     int updateUserStatus(@Param("userId") Long userId, @Param("status") String status);
 
     int insertAudit(@Param("adminId") Long adminId,

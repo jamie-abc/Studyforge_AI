@@ -15,6 +15,7 @@ import com.studyforge.interaction.mapper.PostViewHistoryMapper;
 import com.studyforge.interaction.service.InteractionCommandService;
 import com.studyforge.interaction.vo.CommentVO;
 import com.studyforge.interaction.vo.PostInteractionStateVO;
+import com.studyforge.system.service.NotificationService;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,30 +30,34 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
     private final PostFavoriteMapper postFavoriteMapper;
     private final PostViewHistoryMapper postViewHistoryMapper;
     private final FavoriteCollectionMapper favoriteCollectionMapper;
+    private final NotificationService notificationService;
 
     public InteractionCommandServiceImpl(PostMapper postMapper,
                                          CommentMapper commentMapper,
                                          PostLikeMapper postLikeMapper,
                                          PostFavoriteMapper postFavoriteMapper,
                                          PostViewHistoryMapper postViewHistoryMapper,
-                                         FavoriteCollectionMapper favoriteCollectionMapper) {
+                                         FavoriteCollectionMapper favoriteCollectionMapper,
+                                         NotificationService notificationService) {
         this.postMapper = postMapper;
         this.commentMapper = commentMapper;
         this.postLikeMapper = postLikeMapper;
         this.postFavoriteMapper = postFavoriteMapper;
         this.postViewHistoryMapper = postViewHistoryMapper;
         this.favoriteCollectionMapper = favoriteCollectionMapper;
+        this.notificationService = notificationService;
     }
 
     @Override
     @Transactional
     public PostInteractionStateVO like(Long postId, Long userId) {
-        assertPost(postId);
+        Post post = assertPost(postId);
         if (postLikeMapper.countByPostAndUser(postId, userId) > 0) {
             postLikeMapper.deleteByPostAndUser(postId, userId);
             postMapper.incrementLikeCount(postId, -1);
         } else if (postLikeMapper.insertIgnore(postId, userId) > 0) {
             postMapper.incrementLikeCount(postId, 1);
+            notificationService.notifyPostLiked(post.getAuthorId(), userId, postId, postMapper.selectOriginalTitle(postId));
         }
         return state(postId, userId);
     }
@@ -60,7 +65,7 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
     @Override
     @Transactional
     public PostInteractionStateVO favorite(Long postId, Long userId) {
-        assertPost(postId);
+        Post post = assertPost(postId);
         if (postFavoriteMapper.countByPostAndUser(postId, userId) > 0) {
             postFavoriteMapper.deleteByPostAndUser(postId, userId);
             favoriteCollectionMapper.deleteItemsByPostAndUser(postId, userId);
@@ -72,6 +77,7 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
                 favoriteCollectionMapper.insertIgnoreItem(defaultCollection.getCollectionId(), postId, userId);
             }
             postMapper.incrementFavoriteCount(postId, 1);
+            notificationService.notifyPostFavorited(post.getAuthorId(), userId, postId, postMapper.selectOriginalTitle(postId));
         }
         return state(postId, userId);
     }
@@ -102,7 +108,7 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
     @Override
     @Transactional
     public CommentVO comment(Long postId, Long userId, CreateCommentRequest request) {
-        assertPost(postId);
+        Post post = assertPost(postId);
         if (request == null || request.content() == null || request.content().isBlank()) {
             throw new BizException(ErrorCode.VALIDATION_ERROR, "comment content is required");
         }
@@ -115,7 +121,9 @@ public class InteractionCommandServiceImpl implements InteractionCommandService 
         comment.setStatus("VISIBLE");
         commentMapper.insert(comment);
         postMapper.incrementCommentCount(postId, 1);
-        return toVO(comment);
+        notificationService.notifyPostCommented(post.getAuthorId(), userId, postId, comment.getCommentId(), postMapper.selectOriginalTitle(postId), comment.getContent());
+        Comment created = commentMapper.selectById(comment.getCommentId());
+        return toVO(created == null ? comment : created);
     }
 
     @Override

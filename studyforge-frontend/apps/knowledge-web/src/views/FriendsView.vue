@@ -12,10 +12,13 @@ import {
 } from '@/api/users';
 import EmptyState from '@/components/EmptyState.vue';
 import LoadingState from '@/components/LoadingState.vue';
+import { usePreferencesStore } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
 import type { FriendMessage, FriendRequest, SocialUser } from '@/types/api';
+import { formatShortDateTime } from '@/utils/date';
 
 const sessionStore = useSessionStore();
+const preferencesStore = usePreferencesStore();
 const friends = ref<SocialUser[]>([]);
 const incoming = ref<FriendRequest[]>([]);
 const outgoing = ref<FriendRequest[]>([]);
@@ -117,16 +120,8 @@ async function sendMessage() {
   }
 }
 
-function formatDate(value: string | null) {
-  if (!value) {
-    return '';
-  }
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value));
+function formatDate(value: unknown) {
+  return formatShortDateTime(value, preferencesStore.languageCode);
 }
 
 onMounted(loadFriends);

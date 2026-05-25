@@ -37,6 +37,8 @@ export interface PostSummary {
   commentCount: number;
   viewCount: number;
   hotScore: number;
+  createdTime: string | number[] | null;
+  updatedTime: string | number[] | null;
 }
 
 export interface PostDetail extends PostSummary {
@@ -78,7 +80,7 @@ export interface CommentItem {
   userId: number;
   languageCode: string;
   content: string;
-  createdTime: string;
+  createdTime: string | number[] | null;
 }
 
 export interface ReportSubmission {
@@ -90,6 +92,11 @@ export interface AiResult {
   type: string;
   languageCode: string;
   text: string;
+}
+
+export interface AiCoverResult {
+  coverImageUrl: string;
+  visualBrief: string;
 }
 
 export interface AiLogItem {
@@ -114,7 +121,7 @@ export interface HelpRequest {
   categoryId: number | null;
   status: string;
   rewardPoints: number;
-  createdTime: string;
+  createdTime: string | number[] | null;
 }
 
 export interface HelpAnswer {
@@ -123,7 +130,7 @@ export interface HelpAnswer {
   userId: number;
   content: string;
   accepted: number;
-  createdTime: string;
+  createdTime: string | number[] | null;
 }
 
 export interface TopicCategory {
@@ -169,14 +176,36 @@ export interface SocialUser {
   followedByViewer: boolean;
 }
 
+export interface UserActivity {
+  activityKey: string;
+  activityType: 'POST_PUBLISHED' | 'HELP_ASKED' | 'HELP_ANSWERED' | 'COMMENTED' | 'LIKED_POST' | 'FAVORITED_POST' | string;
+  targetType: 'POST' | 'HELP' | string;
+  targetId: number | null;
+  postId: number | null;
+  helpId: number | null;
+  commentId: number | null;
+  answerId: number | null;
+  title: string;
+  summary: string;
+  content: string;
+  languageCode: string;
+  categoryCode: string;
+  coverImageUrl: string | null;
+  likeCount: number;
+  favoriteCount: number;
+  commentCount: number;
+  viewCount: number;
+  createdTime: string | number[] | null;
+}
+
 export interface FriendRequest {
   requestId: number;
   requester: SocialUser;
   addressee: SocialUser;
   message: string;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | string;
-  createdTime: string | null;
-  processedTime: string | null;
+  createdTime: string | number[] | null;
+  processedTime: string | number[] | null;
 }
 
 export interface FriendMessage {
@@ -189,7 +218,7 @@ export interface FriendMessage {
   receiverAvatarUrl: string;
   content: string;
   read: boolean;
-  createdTime: string | null;
+  createdTime: string | number[] | null;
 }
 
 export interface FavoriteCollection {
@@ -200,4 +229,31 @@ export interface FavoriteCollection {
   visibility: 'PUBLIC' | 'PRIVATE' | string;
   itemCount: number;
   createdTime: string;
+}
+
+export interface NotificationItem {
+  notificationId: number;
+  recipientId: number;
+  actorId: number | null;
+  actorName: string;
+  actorAvatarUrl: string;
+  notificationType:
+    | 'POST_LIKED'
+    | 'POST_FAVORITED'
+    | 'POST_COMMENTED'
+    | 'HELP_ANSWERED'
+    | 'FRIEND_REQUEST'
+    | string;
+  targetType: 'POST' | 'HELP' | 'USER' | string;
+  targetId: number | null;
+  postId: number | null;
+  helpId: number | null;
+  commentId: number | null;
+  answerId: number | null;
+  friendRequestId: number | null;
+  title: string;
+  content: string;
+  read: boolean;
+  createdTime: string | number[] | null;
+  readTime: string | number[] | null;
 }

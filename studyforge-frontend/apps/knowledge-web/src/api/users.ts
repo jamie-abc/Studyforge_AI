@@ -1,5 +1,5 @@
 import { http, unwrap } from '@/api/http';
-import type { FriendMessage, FriendRequest, PostSummary, SocialUser, UserProfile } from '@/types/api';
+import type { FriendMessage, FriendRequest, PostSummary, SocialUser, UserActivity, UserProfile } from '@/types/api';
 
 export interface UpdateProfilePayload {
   username: string;
@@ -37,6 +37,17 @@ export function getUserPosts(userId: number | string, languageCode: string) {
       params: {
         languageCode,
         limit: 30
+      }
+    })
+  );
+}
+
+export function getUserActivities(userId: number | string, languageCode: string) {
+  return unwrap<UserActivity[]>(
+    http.get(`/users/${userId}/activities`, {
+      params: {
+        languageCode,
+        limit: 40
       }
     })
   );

@@ -370,6 +370,37 @@ CREATE TABLE IF NOT EXISTS help_answers (
     CONSTRAINT fk_help_answers_user_id FOREIGN KEY (user_id) REFERENCES users (user_id)
 ) ENGINE=InnoDB COMMENT='Answers for help requests';
 
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    recipient_id BIGINT UNSIGNED NOT NULL,
+    actor_id BIGINT UNSIGNED NULL,
+    notification_type VARCHAR(40) NOT NULL,
+    target_type VARCHAR(40) NOT NULL,
+    target_id BIGINT UNSIGNED NULL,
+    post_id BIGINT UNSIGNED NULL,
+    help_id BIGINT UNSIGNED NULL,
+    comment_id BIGINT UNSIGNED NULL,
+    answer_id BIGINT UNSIGNED NULL,
+    friend_request_id BIGINT UNSIGNED NULL,
+    title VARCHAR(200) NOT NULL,
+    content VARCHAR(500) NULL,
+    read_flag TINYINT(1) NOT NULL DEFAULT 0,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_time DATETIME NULL,
+    KEY idx_notifications_recipient_read_time (recipient_id, read_flag, created_time DESC),
+    KEY idx_notifications_recipient_time (recipient_id, created_time DESC),
+    KEY idx_notifications_actor_time (actor_id, created_time DESC),
+    KEY idx_notifications_post (post_id),
+    KEY idx_notifications_help (help_id),
+    CONSTRAINT fk_notifications_recipient_id FOREIGN KEY (recipient_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_notifications_actor_id FOREIGN KEY (actor_id) REFERENCES users (user_id) ON DELETE SET NULL,
+    CONSTRAINT fk_notifications_post_id FOREIGN KEY (post_id) REFERENCES posts (post_id) ON DELETE CASCADE,
+    CONSTRAINT fk_notifications_help_id FOREIGN KEY (help_id) REFERENCES help_requests (help_id) ON DELETE CASCADE,
+    CONSTRAINT fk_notifications_comment_id FOREIGN KEY (comment_id) REFERENCES comments (comment_id) ON DELETE SET NULL,
+    CONSTRAINT fk_notifications_answer_id FOREIGN KEY (answer_id) REFERENCES help_answers (answer_id) ON DELETE SET NULL,
+    CONSTRAINT fk_notifications_friend_request_id FOREIGN KEY (friend_request_id) REFERENCES friend_requests (request_id) ON DELETE SET NULL
+) ENGINE=InnoDB COMMENT='User notifications for social and learning interactions';
+
 CREATE TABLE IF NOT EXISTS admin_audit_logs (
     log_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     admin_id BIGINT UNSIGNED NOT NULL,

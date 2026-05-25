@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Activity, BadgeCheck, BrainCircuit, Compass, RefreshCw, Search, Sparkles, TrendingUp } from '@lucide/vue';
-import { getTrendingPosts } from '@/api/posts';
+import { getPosts } from '@/api/posts';
 import EmptyState from '@/components/EmptyState.vue';
 import KnowledgeCard from '@/components/KnowledgeCard.vue';
 import LoadingState from '@/components/LoadingState.vue';
@@ -158,9 +158,10 @@ async function loadPosts() {
   errorMessage.value = '';
 
   try {
-    posts.value = await getTrendingPosts({
+    posts.value = await getPosts({
       languageCode: preferencesStore.languageCode,
-      limit: 12
+      categoryCode: 'ALL',
+      limit: 30
     });
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '内容暂时没取到';

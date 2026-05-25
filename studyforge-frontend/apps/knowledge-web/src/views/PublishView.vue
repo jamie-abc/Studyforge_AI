@@ -8,6 +8,7 @@ import {
   FileText,
   Heading2,
   ImagePlus,
+  Images,
   Languages,
   Link,
   ListChecks,
@@ -22,7 +23,7 @@ import {
   Text,
   X
 } from '@lucide/vue';
-import { formatMarkdown as requestMarkdownFormat } from '@/api/ai';
+import { formatMarkdown as requestMarkdownFormat, generateCover } from '@/api/ai';
 import { createPost, getPostDetail, updatePost } from '@/api/posts';
 import { uploadImage } from '@/api/uploads';
 import LoadingState from '@/components/LoadingState.vue';
@@ -44,8 +45,10 @@ const loading = ref(false);
 const loadingPost = ref(false);
 const uploading = ref(false);
 const formatting = ref(false);
+const generatingCover = ref(false);
 const errorMessage = ref('');
 const savedMessage = ref('');
+const coverGeneratedMessage = ref('');
 const mode = ref<EditorMode>('split');
 const editorRef = ref<HTMLTextAreaElement | null>(null);
 const coverDragActive = ref(false);
@@ -410,6 +413,46 @@ async function formatWithAi() {
   }
 }
 
+async function generateCoverWithAi() {
+  if (!sessionStore.isAuthenticated) {
+    errorMessage.value = '请先登录再生成封面';
+    return;
+  }
+
+  const title = form.title.trim();
+  const summary = form.summary.trim();
+  const content = form.content.trim();
+  if (!title && !summary && !content) {
+    errorMessage.value = '先写标题、摘要或正文，再生成封面';
+    return;
+  }
+  if (content.length > 12000) {
+    errorMessage.value = '生成封面一次最多参考 12000 个字符';
+    return;
+  }
+
+  generatingCover.value = true;
+  coverGeneratedMessage.value = '';
+  errorMessage.value = '';
+
+  try {
+    const result = await generateCover({
+      title,
+      summary,
+      content,
+      languageCode: form.originalLanguage,
+      promptLanguageCode: preferencesStore.languageCode
+    });
+    form.coverImageUrl = result.coverImageUrl;
+    coverGeneratedMessage.value = result.visualBrief ? `封面已生成：${result.visualBrief}` : '封面已生成';
+    saveDraft();
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'AI 封面暂时没有生成成功';
+  } finally {
+    generatingCover.value = false;
+  }
+}
+
 async function submit() {
   if (!sessionStore.isAuthenticated) {
     await router.push({ path: '/login', query: { redirect: route.fullPath } });
@@ -487,23 +530,30 @@ watch(
               <X :size="16" />
             </button>
           </div>
-          <label
-            class="upload-drop"
-            :class="{ active: coverDragActive }"
-            @dragenter.prevent="coverDragActive = true"
-            @dragover.prevent="coverDragActive = true"
-            @dragleave.prevent="coverDragActive = false"
-            @drop.prevent="handleCoverDrop"
-          >
-            <ImagePlus :size="20" />
-            <strong>{{ form.coverImageUrl ? '更换封面' : '上传封面' }}</strong>
-            <span>点击选择，或把 JPG、PNG、WebP、GIF 拖到这里</span>
-            <input accept="image/*" type="file" @change="handleCoverUpload" />
-          </label>
+          <div class="cover-actions">
+            <label
+              class="upload-drop"
+              :class="{ active: coverDragActive }"
+              @dragenter.prevent="coverDragActive = true"
+              @dragover.prevent="coverDragActive = true"
+              @dragleave.prevent="coverDragActive = false"
+              @drop.prevent="handleCoverDrop"
+            >
+              <ImagePlus :size="20" />
+              <strong>{{ form.coverImageUrl ? '更换封面' : '上传封面' }}</strong>
+              <span>点击选择，或把 JPG、PNG、WebP、GIF 拖到这里</span>
+              <input accept="image/*" type="file" @change="handleCoverUpload" />
+            </label>
+            <button class="ai-cover-button" type="button" :disabled="generatingCover || uploading || formatting" @click="generateCoverWithAi">
+              <Images :size="19" />
+              <strong>{{ generatingCover ? '生成中' : 'AI 生成封面' }}</strong>
+              <span>根据标题、摘要和正文生成博客风格封面</span>
+            </button>
+          </div>
         </div>
 
         <div class="editor-toolbar" aria-label="Markdown 工具栏">
-          <button class="ai-format-button" type="button" title="AI 排版" :disabled="formatting || uploading" @click="formatWithAi">
+          <button class="ai-format-button" type="button" title="AI 排版" :disabled="formatting || uploading || generatingCover" @click="formatWithAi">
             <Sparkles :size="17" />
             <span>{{ formatting ? '排版中' : 'AI 排版' }}</span>
           </button>
@@ -589,6 +639,7 @@ watch(
         </div>
 
         <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+        <p v-if="coverGeneratedMessage" class="form-success cover-generated-message">{{ coverGeneratedMessage }}</p>
         <p v-if="savedMessage" class="form-success">{{ savedMessage }}</p>
 
         <div class="form-actions composer-actions">
@@ -596,9 +647,23 @@ watch(
             <Save :size="17" />
             <span>保存草稿</span>
           </button>
-          <button class="primary-button" type="submit" :disabled="loading || uploading || formatting">
+          <button class="primary-button" type="submit" :disabled="loading || uploading || formatting || generatingCover">
             <Send :size="17" />
-            <span>{{ loading ? (isEditMode ? '正在保存' : '正在发布') : uploading ? '正在上传' : formatting ? '正在排版' : isEditMode ? '保存修改' : '发布到知识流' }}</span>
+            <span>{{
+              loading
+                ? isEditMode
+                  ? '正在保存'
+                  : '正在发布'
+                : uploading
+                  ? '正在上传'
+                  : generatingCover
+                    ? '正在生成封面'
+                    : formatting
+                      ? '正在排版'
+                      : isEditMode
+                        ? '保存修改'
+                        : '发布到知识流'
+            }}</span>
           </button>
         </div>
       </div>

@@ -100,10 +100,11 @@ http://localhost:5174
 
 ## Database
 
-Run the schema and seed scripts in order:
+For a new database, run the schema first. Import the seed script only when you intentionally want to reset the local demo data:
 
 ```bash
 mysql -u root -p < sql/001_schema.sql
+# Warning: this clears local business data before loading demo rows.
 mysql -u root -p < sql/002_seed_data.sql
 ```
 
@@ -113,13 +114,19 @@ On this Linux machine, the available local database account is `lynn` without a 
 test_studyforge_ai_v2
 ```
 
-Reimport the local database:
+Apply schema changes to the local database without deleting user-created content:
 
 ```bash
 ./scripts/import_local_db.sh
 ```
 
-The local seed data is reset to a production-like study dataset on each import. Current seeded accounts:
+Reset the local database to the demo dataset only when needed:
+
+```bash
+RESET_SEED=1 ./scripts/import_local_db.sh
+```
+
+The reset seed data is a production-like study dataset. Current seeded accounts:
 
 ```text
 User account:  chen_jiayi / StudyForge@2026

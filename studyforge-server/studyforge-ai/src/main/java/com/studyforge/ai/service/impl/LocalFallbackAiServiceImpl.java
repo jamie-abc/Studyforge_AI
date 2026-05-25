@@ -125,6 +125,11 @@ public class LocalFallbackAiServiceImpl implements AiService {
                 """.formatted(source);
     }
 
+    @Override
+    public GeneratedCover generateCover(String title, String summary, String content, String language) {
+        return null;
+    }
+
     private String trimContent(String content, int maxLength) {
         if (content == null || content.isBlank()) {
             return "";

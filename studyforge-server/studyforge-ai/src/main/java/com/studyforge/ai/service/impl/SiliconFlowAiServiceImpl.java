@@ -11,7 +11,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +22,9 @@ import org.springframework.stereotype.Service;
 public class SiliconFlowAiServiceImpl implements AiService {
     private static final String DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1";
     private static final String DEFAULT_MODEL = "deepseek-ai/DeepSeek-V4-Flash";
+    private static final String DEFAULT_IMAGE_BASE_URL = "https://api.hiyo.top/v1";
+    private static final String DEFAULT_IMAGE_MODEL = "gpt-image-2";
+    private static final String DEFAULT_IMAGE_SIZE = "1536x1024";
     private static final Duration AI_TIMEOUT = Duration.ofSeconds(200);
 
     private final IntegrationSettingService integrationSettingService;
@@ -189,6 +195,52 @@ public class SiliconFlowAiServiceImpl implements AiService {
         return complete(prompt, () -> fallback.formatMarkdown(content, language));
     }
 
+    @Override
+    public GeneratedCover generateCover(String title, String summary, String content, String language) {
+        String source = """
+                Title:
+                %s
+
+                Summary:
+                %s
+
+                Content:
+                %s
+                """.formatted(blankToEmpty(title), blankToEmpty(summary), truncate(blankToEmpty(content), 6000));
+        String briefPrompt = isEnglish(language)
+                ? """
+                Read the article draft below and write a concise visual brief for a blog cover image.
+
+                Rules:
+                - Output one paragraph only, 60 to 100 English words.
+                - Describe the core subject, visual metaphor, mood, color direction, and 2 to 4 concrete elements.
+                - Do not mention the website, the author, or "this article".
+                - Do not request visible text, logos, UI screenshots, or watermarks in the image.
+
+                Draft:
+                %s
+                """.formatted(source)
+                : """
+                阅读下面的文章草稿，写一段适合生成博客封面的视觉简报。
+
+                要求：
+                - 只输出一段中文，60 到 100 字。
+                - 说明核心主题、视觉隐喻、氛围、色彩方向和 2 到 4 个具体画面元素。
+                - 不要提网站、作者或“这篇文章”。
+                - 不要要求图片中出现文字、Logo、界面截图或水印。
+
+                草稿：
+                %s
+                """.formatted(source);
+        String brief = cleanText(complete(briefPrompt, () -> fallbackBrief(title, summary, content, language)), 700);
+        String imagePrompt = coverPrompt(brief, language);
+        String imageBase64 = generateImageBase64(imagePrompt);
+        if (imageBase64 == null || imageBase64.isBlank()) {
+            return null;
+        }
+        return new GeneratedCover(imageBase64, "image/png", brief, imagePrompt);
+    }
+
     private String complete(String prompt, Fallback fallbackValue) {
         String apiKey = integrationSettingService.getValue("ai.api_key", "");
         if (apiKey.isBlank()) {
@@ -196,7 +248,7 @@ public class SiliconFlowAiServiceImpl implements AiService {
         }
 
         try {
-            String baseUrl = trimSlash(integrationSettingService.getValue("ai.base_url", DEFAULT_BASE_URL));
+            String baseUrl = trimSlash(integrationSettingService.getValue("ai.base_url", DEFAULT_BASE_URL), DEFAULT_BASE_URL);
             String model = integrationSettingService.getValue("ai.chat_model", DEFAULT_MODEL);
             Map<String, Object> requestBody = Map.of(
                     "model", model,
@@ -223,9 +275,129 @@ public class SiliconFlowAiServiceImpl implements AiService {
         }
     }
 
-    private String trimSlash(String value) {
+    private String generateImageBase64(String prompt) {
+        String apiKey = integrationSettingService.getValue("image.api_key", "");
+        if (apiKey.isBlank()) {
+            return null;
+        }
+
+        try {
+            String baseUrl = trimSlash(integrationSettingService.getValue("image.base_url", DEFAULT_IMAGE_BASE_URL), DEFAULT_IMAGE_BASE_URL);
+            String model = integrationSettingService.getValue("image.model", DEFAULT_IMAGE_MODEL);
+            String size = integrationSettingService.getValue("image.size", DEFAULT_IMAGE_SIZE);
+            Map<String, Object> requestBody = Map.of(
+                    "model", model,
+                    "prompt", prompt,
+                    "size", size,
+                    "n", 1,
+                    "response_format", "b64_json"
+            );
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/images/generations"))
+                    .timeout(AI_TIMEOUT)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody)))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode first = root.path("data").path(0);
+            String b64 = first.path("b64_json").asText("");
+            if (!b64.isBlank()) {
+                return stripDataUrlPrefix(b64);
+            }
+            String url = first.path("url").asText("");
+            return url.isBlank() ? null : fetchImageAsBase64(url);
+        } catch (Exception exception) {
+            return null;
+        }
+    }
+
+    private String fetchImageAsBase64(String url) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(AI_TIMEOUT)
+                    .GET()
+                    .build();
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() < 200 || response.statusCode() >= 300 || response.body() == null || response.body().length == 0) {
+                return null;
+            }
+            return Base64.getEncoder().encodeToString(response.body());
+        } catch (Exception exception) {
+            return null;
+        }
+    }
+
+    private String coverPrompt(String brief, String language) {
+        String content = isEnglish(language)
+                ? "%s is the main idea of an article. Generate a blog-style cover image that matches this content.".formatted(brief)
+                : "%s 是一篇文章的主要内容。请生成一张博客风格的文章封面，画面需要符合这个内容。".formatted(brief);
+        return """
+                %s
+
+                Style requirements:
+                - Landscape article cover, 3:2 ratio, clean modern editorial blog style.
+                - Rich but restrained composition, suitable for a technology and learning community.
+                - Use symbolic objects, workspace details, diagrams, notes, devices, light, and depth when relevant.
+                - No readable text, no letters, no UI screenshots, no logo, no watermark.
+                - High quality, polished, balanced negative space, clear focal point.
+                """.formatted(content);
+    }
+
+    private String fallbackBrief(String title, String summary, String content, String language) {
+        List<String> parts = new ArrayList<>();
+        if (!isBlank(title)) {
+            parts.add(title.trim());
+        }
+        if (!isBlank(summary)) {
+            parts.add(summary.trim());
+        }
+        if (parts.isEmpty() && !isBlank(content)) {
+            parts.add(truncate(content.trim().replaceAll("\\s+", " "), 260));
+        }
+        String text = parts.isEmpty() ? "学习笔记、知识整理、复习卡片和社区讨论" : String.join("。", parts);
+        if (isEnglish(language)) {
+            return "A thoughtful learning article about " + truncate(text, 320) + ", with a calm workspace, organized notes, subtle diagrams, and a focused editorial mood.";
+        }
+        return truncate(text, 320) + "。画面可以包含安静的学习桌面、结构化笔记、轻量图表和清晰的知识整理氛围。";
+    }
+
+    private String stripDataUrlPrefix(String value) {
+        int comma = value.indexOf(',');
+        return value.startsWith("data:") && comma >= 0 ? value.substring(comma + 1) : value;
+    }
+
+    private String cleanText(String value, int maxLength) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = value.trim()
+                .replaceAll("^```[a-zA-Z]*", "")
+                .replaceAll("```$", "")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return truncate(normalized, maxLength);
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null) {
+            return "";
+        }
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String trimSlash(String value, String defaultValue) {
         if (value == null || value.isBlank()) {
-            return DEFAULT_BASE_URL;
+            return defaultValue;
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
@@ -268,7 +440,11 @@ public class SiliconFlowAiServiceImpl implements AiService {
     }
 
     private boolean isEnglish(String language) {
-        return language != null && language.toLowerCase(java.util.Locale.ROOT).startsWith("en");
+        return language != null && language.toLowerCase(Locale.ROOT).startsWith("en");
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     @FunctionalInterface

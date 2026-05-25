@@ -9,14 +9,20 @@ import {
   EyeOff,
   FileText,
   Flag,
+  Heart,
+  History,
   Pin,
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
   UserCog,
-  Users
+  UserRound,
+  Users,
+  Volume2
 } from '@lucide/vue';
 import {
+  getAdminUserDetail,
   getAdminOverview,
   getAdminPosts,
   getAdminUsers,
@@ -29,7 +35,7 @@ import {
 import EmptyState from '@/components/EmptyState.vue';
 import LoadingState from '@/components/LoadingState.vue';
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue';
-import type { AdminOverview, AdminPost, AdminReport, AdminUser } from '@/types/api';
+import type { AdminOverview, AdminPost, AdminReport, AdminUser, AdminUserDetail } from '@/types/api';
 
 type TabKey = 'reports' | 'posts' | 'users';
 
@@ -39,6 +45,7 @@ const posts = ref<AdminPost[]>([]);
 const reports = ref<AdminReport[]>([]);
 const users = ref<AdminUser[]>([]);
 const selectedPost = ref<AdminPost | null>(null);
+const selectedUser = ref<AdminUserDetail | null>(null);
 const loading = ref(false);
 const busyKey = ref('');
 const errorMessage = ref('');
@@ -115,6 +122,17 @@ async function loadUsers() {
     keyword: filters.keyword,
     limit: filters.limit
   });
+
+  if (!users.value.length) {
+    selectedUser.value = null;
+    return;
+  }
+
+  if (selectedUser.value && users.value.some((user) => user.userId === selectedUser.value?.userId)) {
+    await selectUser(users.value.find((user) => user.userId === selectedUser.value?.userId) ?? users.value[0]);
+  } else {
+    await selectUser(users.value[0]);
+  }
 }
 
 async function loadAll() {
@@ -156,6 +174,10 @@ function selectPost(post: AdminPost) {
   selectedPost.value = post;
 }
 
+async function selectUser(user: AdminUser) {
+  selectedUser.value = await getAdminUserDetail(user.userId);
+}
+
 async function setFeatured(post: AdminPost, featured: boolean) {
   await runAction(`feature-${post.postId}`, async () => {
     const next = await updatePostFeatured(post.postId, featured, actionRemark.value);
@@ -186,6 +208,9 @@ async function setUserStatus(user: AdminUser, status: string) {
   await runAction(`user-${user.userId}-${status}`, async () => {
     const next = await updateUserStatus(user.userId, status, actionRemark.value);
     users.value = users.value.map((item) => (item.userId === next.userId ? next : item));
+    if (selectedUser.value?.userId === next.userId) {
+      selectedUser.value = await getAdminUserDetail(next.userId);
+    }
     successMessage.value = '账号状态已更新';
     await loadOverview();
   });
@@ -220,8 +245,22 @@ function statusClass(status: string) {
   return `state-${status.toLowerCase()}`;
 }
 
-function formatDate(value: string | null) {
+function toDate(value: unknown) {
   if (!value) {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    const [year, month = 1, day = 1, hour = 0, minute = 0, second = 0, nano = 0] = value.map(Number);
+    const date = new Date(year, month - 1, day, hour, minute, second, Math.floor(nano / 1000000));
+    return Number.isFinite(date.getTime()) ? date : null;
+  }
+  const date = new Date(String(value));
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function formatDate(value: unknown) {
+  const date = toDate(value);
+  if (!date) {
     return '-';
   }
   return new Intl.DateTimeFormat('zh-CN', {
@@ -229,7 +268,33 @@ function formatDate(value: string | null) {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit'
-  }).format(new Date(value));
+  }).format(date);
+}
+
+function userActionItems(user: AdminUserDetail) {
+  return [
+    { label: '发帖', value: `${user.publishedPostCount}/${user.postCount}`, note: `${user.archivedPostCount} 篇已下架` },
+    { label: '评论', value: user.commentCount, note: formatDate(user.lastCommentTime) },
+    { label: '点赞', value: user.likeCount, note: '主动点赞' },
+    { label: '收藏', value: user.favoriteCount, note: `${user.collectionCount} 个收藏夹` },
+    { label: '浏览', value: user.historyCount, note: '阅读历史' },
+    { label: '求助', value: user.helpRequestCount, note: `${user.helpAnswerCount} 个回答` },
+    { label: '举报', value: user.reportCount, note: `${user.reportedPostCount} 次被举报` },
+    { label: '上传', value: user.uploadCount, note: '图片与附件' }
+  ];
+}
+
+function userSystemItems(user: AdminUserDetail) {
+  return [
+    { label: '关注', value: user.followingCount, note: `${user.followerCount} 个粉丝` },
+    { label: '好友', value: user.friendCount, note: `${user.incomingFriendRequestCount + user.outgoingFriendRequestCount} 个待处理申请` },
+    { label: '消息', value: user.sentMessageCount + user.receivedMessageCount, note: `${user.sentMessageCount} 发出 / ${user.receivedMessageCount} 收到` },
+    { label: '经验', value: user.experienceLogCount, note: user.lastLoginRewardDate ? `上次登录奖励 ${formatDate(user.lastLoginRewardDate)}` : '暂无登录奖励记录' },
+    { label: '会话', value: user.activeTokenCount, note: '未过期登录 token' },
+    { label: 'AI', value: user.aiCallCount, note: `${user.aiSuccessCount} 次成功` },
+    { label: '语音', value: user.voiceRecordCount, note: formatDate(user.lastVoiceTime) },
+    { label: '声望', value: user.reputationScore, note: `Lv.${user.communityLevel}` }
+  ];
 }
 
 onMounted(loadAll);
@@ -483,61 +548,169 @@ onMounted(loadAll);
       </aside>
     </div>
 
-    <div v-else class="table-surface">
-      <table>
-        <thead>
-          <tr>
-            <th>账号</th>
-            <th>联系方式</th>
-            <th>等级</th>
-            <th>社区数据</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="user in users" :key="user.userId">
-            <td>
-              <strong>{{ user.displayName || user.username }}</strong>
-              <small>@{{ user.username }} · #{{ user.userId }}</small>
-            </td>
-            <td>
-              <span>{{ user.email }}</span>
-              <small>{{ user.role }}</small>
-            </td>
-            <td>
-              <strong>Lv.{{ user.communityLevel }}</strong>
-              <small>{{ user.experiencePoints }} XP · 声望 {{ user.reputationScore }}</small>
-            </td>
-            <td>
-              <small>{{ user.postCount }} 篇文章 · {{ user.commentCount }} 条评论</small>
-              <small>{{ user.favoriteCount }} 收藏 · {{ user.followerCount }} 关注者</small>
-            </td>
-            <td>
-              <span class="state-badge" :class="statusClass(user.status)">{{ user.status }}</span>
-              <small>{{ formatDate(user.createdTime) }} 加入</small>
-            </td>
-            <td>
-              <div v-if="user.role !== 'ADMIN'" class="table-actions">
-                <button class="secondary-button" type="button" :disabled="user.status === 'ACTIVE'" @click="setUserStatus(user, 'ACTIVE')">
-                  <CircleCheck :size="16" />
-                  <span>恢复</span>
+    <div v-else class="management-grid user-management-grid">
+      <div class="table-surface">
+        <table>
+          <thead>
+            <tr>
+              <th>账号</th>
+              <th>联系方式</th>
+              <th>等级</th>
+              <th>社区数据</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="user in users" :key="user.userId" :class="{ selected: selectedUser?.userId === user.userId }">
+              <td>
+                <button class="text-button" type="button" @click="selectUser(user)">
+                  {{ user.displayName || user.username }}
                 </button>
-                <button class="secondary-button" type="button" :disabled="user.status === 'LOCKED'" @click="setUserStatus(user, 'LOCKED')">
-                  <UserCog :size="16" />
-                  <span>锁定</span>
-                </button>
-                <button class="secondary-button danger-action" type="button" :disabled="user.status === 'DISABLED'" @click="setUserStatus(user, 'DISABLED')">
-                  <ShieldCheck :size="16" />
-                  <span>停用</span>
-                </button>
-              </div>
-              <span v-else class="muted-line">管理员账号</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <EmptyState v-if="users.length === 0" title="没有账号" description="当前筛选条件下没有账号记录。" />
+                <small>@{{ user.username }} · #{{ user.userId }}</small>
+              </td>
+              <td>
+                <span>{{ user.email }}</span>
+                <small>{{ user.role }}</small>
+              </td>
+              <td>
+                <strong>Lv.{{ user.communityLevel }}</strong>
+                <small>{{ user.experiencePoints }} XP · 声望 {{ user.reputationScore }}</small>
+              </td>
+              <td>
+                <small>{{ user.postCount }} 篇文章 · {{ user.commentCount }} 条评论</small>
+                <small>{{ user.favoriteCount }} 收藏 · {{ user.followerCount }} 关注者</small>
+              </td>
+              <td>
+                <span class="state-badge" :class="statusClass(user.status)">{{ user.status }}</span>
+                <small>{{ formatDate(user.createdTime) }} 加入</small>
+              </td>
+              <td>
+                <div class="table-actions">
+                  <button class="secondary-button" type="button" @click="selectUser(user)">
+                    <UserRound :size="16" />
+                    <span>详情</span>
+                  </button>
+                  <template v-if="user.role !== 'ADMIN'">
+                    <button class="secondary-button" type="button" :disabled="user.status === 'ACTIVE'" @click="setUserStatus(user, 'ACTIVE')">
+                      <CircleCheck :size="16" />
+                      <span>恢复</span>
+                    </button>
+                    <button class="secondary-button" type="button" :disabled="user.status === 'LOCKED'" @click="setUserStatus(user, 'LOCKED')">
+                      <UserCog :size="16" />
+                      <span>锁定</span>
+                    </button>
+                    <button class="secondary-button danger-action" type="button" :disabled="user.status === 'DISABLED'" @click="setUserStatus(user, 'DISABLED')">
+                      <ShieldCheck :size="16" />
+                      <span>停用</span>
+                    </button>
+                  </template>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <EmptyState v-if="users.length === 0" title="没有账号" description="当前筛选条件下没有账号记录。" />
+      </div>
+
+      <aside v-if="selectedUser" class="management-preview user-preview">
+        <div class="user-preview-head">
+          <div class="admin-user-avatar">
+            <img v-if="selectedUser.avatarUrl" :src="selectedUser.avatarUrl" alt="" />
+            <UserRound v-else :size="28" />
+          </div>
+          <div>
+            <h2>{{ selectedUser.displayName || selectedUser.username }}</h2>
+            <p>@{{ selectedUser.username }} · #{{ selectedUser.userId }}</p>
+            <div class="preview-header-badges">
+              <span class="state-badge" :class="statusClass(selectedUser.status)">{{ selectedUser.status }}</span>
+              <span class="state-badge state-live">{{ selectedUser.role }}</span>
+              <span class="state-badge state-featured">Lv.{{ selectedUser.communityLevel }}</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="user-bio">{{ selectedUser.bio || '这个账号还没有填写简介。' }}</p>
+
+        <div v-if="selectedUser.role !== 'ADMIN'" class="preview-actions">
+          <button class="secondary-button" type="button" :disabled="selectedUser.status === 'ACTIVE'" @click="setUserStatus(selectedUser, 'ACTIVE')">
+            <CircleCheck :size="16" />
+            <span>恢复账号</span>
+          </button>
+          <button class="secondary-button" type="button" :disabled="selectedUser.status === 'LOCKED'" @click="setUserStatus(selectedUser, 'LOCKED')">
+            <UserCog :size="16" />
+            <span>锁定账号</span>
+          </button>
+          <button class="secondary-button danger-action" type="button" :disabled="selectedUser.status === 'DISABLED'" @click="setUserStatus(selectedUser, 'DISABLED')">
+            <ShieldCheck :size="16" />
+            <span>停用账号</span>
+          </button>
+        </div>
+
+        <section class="user-detail-section">
+          <h3>账号资料</h3>
+          <dl class="user-detail-list">
+            <div>
+              <dt>邮箱</dt>
+              <dd>{{ selectedUser.email }}</dd>
+            </div>
+            <div>
+              <dt>注册时间</dt>
+              <dd>{{ formatDate(selectedUser.createdTime) }}</dd>
+            </div>
+            <div>
+              <dt>最近更新</dt>
+              <dd>{{ formatDate(selectedUser.updatedTime) }}</dd>
+            </div>
+            <div>
+              <dt>经验 / 声望</dt>
+              <dd>{{ selectedUser.experiencePoints }} XP / {{ selectedUser.reputationScore }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="user-detail-section">
+          <h3>
+            <Heart :size="16" />
+            内容与互动
+          </h3>
+          <div class="user-stat-grid">
+            <div v-for="item in userActionItems(selectedUser)" :key="item.label">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.note }}</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="user-detail-section">
+          <h3>
+            <Users :size="16" />
+            社交与账号状态
+          </h3>
+          <div class="user-stat-grid">
+            <div v-for="item in userSystemItems(selectedUser)" :key="item.label">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.note }}</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="user-detail-section">
+          <h3>
+            <Sparkles :size="16" />
+            最近活动
+          </h3>
+          <div class="user-activity-list">
+            <span><FileText :size="15" />最近发帖：{{ formatDate(selectedUser.lastPostTime) }}</span>
+            <span><History :size="15" />最近评论：{{ formatDate(selectedUser.lastCommentTime) }}</span>
+            <span><Flag :size="15" />最近求助：{{ formatDate(selectedUser.lastHelpTime) }}</span>
+            <span><Sparkles :size="15" />最近 AI：{{ formatDate(selectedUser.lastAiCallTime) }}</span>
+            <span><Volume2 :size="15" />最近语音：{{ formatDate(selectedUser.lastVoiceTime) }}</span>
+          </div>
+        </section>
+      </aside>
     </div>
   </section>
 </template>

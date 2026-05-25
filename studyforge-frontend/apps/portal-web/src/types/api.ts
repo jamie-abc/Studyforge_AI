@@ -106,6 +106,41 @@ export interface AdminUser {
   createdTime: string | null;
 }
 
+export interface AdminUserDetail extends AdminUser {
+  bio: string;
+  avatarUrl: string;
+  bannerUrl: string;
+  publishedPostCount: number;
+  archivedPostCount: number;
+  likeCount: number;
+  collectionCount: number;
+  historyCount: number;
+  followingCount: number;
+  friendCount: number;
+  incomingFriendRequestCount: number;
+  outgoingFriendRequestCount: number;
+  sentMessageCount: number;
+  receivedMessageCount: number;
+  helpRequestCount: number;
+  helpAnswerCount: number;
+  acceptedAnswerCount: number;
+  reportCount: number;
+  reportedPostCount: number;
+  uploadCount: number;
+  aiCallCount: number;
+  aiSuccessCount: number;
+  voiceRecordCount: number;
+  activeTokenCount: number;
+  experienceLogCount: number;
+  lastLoginRewardDate: string | number[] | null;
+  lastPostTime: string | number[] | null;
+  lastCommentTime: string | number[] | null;
+  lastHelpTime: string | number[] | null;
+  lastAiCallTime: string | number[] | null;
+  lastVoiceTime: string | number[] | null;
+  updatedTime: string | number[] | null;
+}
+
 export interface IntegrationSetting {
   settingKey: string;
   settingValue: string;

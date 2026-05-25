@@ -1,5 +1,5 @@
 import { http, unwrap } from '@/api/http';
-import type { AdminOverview, AdminPost, AdminReport, AdminUser } from '@/types/api';
+import type { AdminOverview, AdminPost, AdminReport, AdminUser, AdminUserDetail } from '@/types/api';
 
 export interface AdminListQuery {
   status?: string;
@@ -75,6 +75,10 @@ export function getAdminUsers(query: AdminListQuery = {}) {
       }
     })
   );
+}
+
+export function getAdminUserDetail(userId: number | string) {
+  return unwrap<AdminUserDetail>(http.get(`/admin/community/users/${userId}`));
 }
 
 export function updateUserStatus(userId: number | string, status: string, remark = '') {

@@ -8,6 +8,7 @@ import com.studyforge.system.dto.UpdatePasswordRequest;
 import com.studyforge.system.vo.FriendMessageVO;
 import com.studyforge.system.vo.FriendRequestVO;
 import com.studyforge.system.vo.SocialUserVO;
+import com.studyforge.system.vo.UserActivityVO;
 import com.studyforge.system.vo.UserProfileVO;
 import java.util.List;
 
@@ -27,6 +28,8 @@ public interface UserProfileService {
     List<SocialUserVO> listFollowing(Long viewerId, Long userId, int limit);
 
     List<SocialUserVO> listFriends(Long viewerId, Long userId, int limit);
+
+    List<UserActivityVO> listActivities(Long viewerId, Long userId, String languageCode, int limit);
 
     FriendRequestVO sendFriendRequest(Long requesterId, Long addresseeId, FriendRequestCreateRequest request);
 

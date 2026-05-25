@@ -36,6 +36,10 @@ public interface UserSocialMapper {
 
     List<User> selectFriends(@Param("userId") Long userId, @Param("limit") int limit);
 
+    List<Map<String, Object>> selectActivities(@Param("userId") Long userId,
+                                               @Param("languageCode") String languageCode,
+                                               @Param("limit") int limit);
+
     int countFriendship(@Param("userLowId") Long userLowId, @Param("userHighId") Long userHighId);
 
     int upsertFriendship(@Param("userLowId") Long userLowId, @Param("userHighId") Long userHighId);

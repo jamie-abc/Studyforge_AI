@@ -173,6 +173,184 @@
         LIMIT #{limit}
     </select>
 
+    <select id="selectActivities" resultType="map">
+        SELECT *
+        FROM (
+            SELECT
+                CONCAT('post:', p.post_id) AS activityKey,
+                'POST_PUBLISHED' AS activityType,
+                'POST' AS targetType,
+                p.post_id AS targetId,
+                p.post_id AS postId,
+                CAST(NULL AS UNSIGNED) AS helpId,
+                CAST(NULL AS UNSIGNED) AS commentId,
+                CAST(NULL AS UNSIGNED) AS answerId,
+                COALESCE(requested.title, fallback.title, '') AS title,
+                COALESCE(requested.summary, fallback.summary, '') AS summary,
+                CAST(NULL AS CHAR) AS content,
+                COALESCE(requested.language_code, fallback.language_code, p.original_language) AS languageCode,
+                COALESCE(cat.category_code, '') AS categoryCode,
+                p.cover_image_url AS coverImageUrl,
+                p.like_count AS likeCount,
+                p.favorite_count AS favoriteCount,
+                p.comment_count AS commentCount,
+                p.view_count AS viewCount,
+                p.created_time AS createdTime
+            FROM posts p
+            LEFT JOIN post_i18n requested ON requested.post_id = p.post_id AND requested.language_code = #{languageCode}
+            LEFT JOIN post_i18n fallback ON fallback.post_id = p.post_id AND fallback.language_code = p.original_language
+            LEFT JOIN categories cat ON cat.category_id = p.category_id
+            WHERE p.author_id = #{userId}
+              AND p.status = 'PUBLISHED'
+
+            UNION ALL
+
+            SELECT
+                CONCAT('help:', h.help_id) AS activityKey,
+                'HELP_ASKED' AS activityType,
+                'HELP' AS targetType,
+                h.help_id AS targetId,
+                CAST(NULL AS UNSIGNED) AS postId,
+                h.help_id AS helpId,
+                CAST(NULL AS UNSIGNED) AS commentId,
+                CAST(NULL AS UNSIGNED) AS answerId,
+                h.title AS title,
+                h.description AS summary,
+                CAST(NULL AS CHAR) AS content,
+                '' AS languageCode,
+                COALESCE(cat.category_code, '') AS categoryCode,
+                CAST(NULL AS CHAR) AS coverImageUrl,
+                0 AS likeCount,
+                0 AS favoriteCount,
+                0 AS commentCount,
+                0 AS viewCount,
+                h.created_time AS createdTime
+            FROM help_requests h
+            LEFT JOIN categories cat ON cat.category_id = h.category_id
+            WHERE h.user_id = #{userId}
+
+            UNION ALL
+
+            SELECT
+                CONCAT('answer:', ha.answer_id) AS activityKey,
+                'HELP_ANSWERED' AS activityType,
+                'HELP' AS targetType,
+                h.help_id AS targetId,
+                CAST(NULL AS UNSIGNED) AS postId,
+                h.help_id AS helpId,
+                CAST(NULL AS UNSIGNED) AS commentId,
+                ha.answer_id AS answerId,
+                h.title AS title,
+                h.description AS summary,
+                ha.content AS content,
+                '' AS languageCode,
+                COALESCE(cat.category_code, '') AS categoryCode,
+                CAST(NULL AS CHAR) AS coverImageUrl,
+                0 AS likeCount,
+                0 AS favoriteCount,
+                0 AS commentCount,
+                0 AS viewCount,
+                ha.created_time AS createdTime
+            FROM help_answers ha
+            JOIN help_requests h ON h.help_id = ha.help_id
+            LEFT JOIN categories cat ON cat.category_id = h.category_id
+            WHERE ha.user_id = #{userId}
+
+            UNION ALL
+
+            SELECT
+                CONCAT('comment:', cm.comment_id) AS activityKey,
+                'COMMENTED' AS activityType,
+                'POST' AS targetType,
+                p.post_id AS targetId,
+                p.post_id AS postId,
+                CAST(NULL AS UNSIGNED) AS helpId,
+                cm.comment_id AS commentId,
+                CAST(NULL AS UNSIGNED) AS answerId,
+                COALESCE(requested.title, fallback.title, '') AS title,
+                COALESCE(requested.summary, fallback.summary, '') AS summary,
+                cm.content AS content,
+                COALESCE(requested.language_code, fallback.language_code, p.original_language) AS languageCode,
+                COALESCE(cat.category_code, '') AS categoryCode,
+                p.cover_image_url AS coverImageUrl,
+                p.like_count AS likeCount,
+                p.favorite_count AS favoriteCount,
+                p.comment_count AS commentCount,
+                p.view_count AS viewCount,
+                cm.created_time AS createdTime
+            FROM comments cm
+            JOIN posts p ON p.post_id = cm.post_id
+            LEFT JOIN post_i18n requested ON requested.post_id = p.post_id AND requested.language_code = #{languageCode}
+            LEFT JOIN post_i18n fallback ON fallback.post_id = p.post_id AND fallback.language_code = p.original_language
+            LEFT JOIN categories cat ON cat.category_id = p.category_id
+            WHERE cm.user_id = #{userId}
+              AND cm.status = 'VISIBLE'
+              AND p.status = 'PUBLISHED'
+
+            UNION ALL
+
+            SELECT
+                CONCAT('like:', pl.like_id) AS activityKey,
+                'LIKED_POST' AS activityType,
+                'POST' AS targetType,
+                p.post_id AS targetId,
+                p.post_id AS postId,
+                CAST(NULL AS UNSIGNED) AS helpId,
+                CAST(NULL AS UNSIGNED) AS commentId,
+                CAST(NULL AS UNSIGNED) AS answerId,
+                COALESCE(requested.title, fallback.title, '') AS title,
+                COALESCE(requested.summary, fallback.summary, '') AS summary,
+                CAST(NULL AS CHAR) AS content,
+                COALESCE(requested.language_code, fallback.language_code, p.original_language) AS languageCode,
+                COALESCE(cat.category_code, '') AS categoryCode,
+                p.cover_image_url AS coverImageUrl,
+                p.like_count AS likeCount,
+                p.favorite_count AS favoriteCount,
+                p.comment_count AS commentCount,
+                p.view_count AS viewCount,
+                pl.created_time AS createdTime
+            FROM post_likes pl
+            JOIN posts p ON p.post_id = pl.post_id
+            LEFT JOIN post_i18n requested ON requested.post_id = p.post_id AND requested.language_code = #{languageCode}
+            LEFT JOIN post_i18n fallback ON fallback.post_id = p.post_id AND fallback.language_code = p.original_language
+            LEFT JOIN categories cat ON cat.category_id = p.category_id
+            WHERE pl.user_id = #{userId}
+              AND p.status = 'PUBLISHED'
+
+            UNION ALL
+
+            SELECT
+                CONCAT('favorite:', pf.favorite_id) AS activityKey,
+                'FAVORITED_POST' AS activityType,
+                'POST' AS targetType,
+                p.post_id AS targetId,
+                p.post_id AS postId,
+                CAST(NULL AS UNSIGNED) AS helpId,
+                CAST(NULL AS UNSIGNED) AS commentId,
+                CAST(NULL AS UNSIGNED) AS answerId,
+                COALESCE(requested.title, fallback.title, '') AS title,
+                COALESCE(requested.summary, fallback.summary, '') AS summary,
+                CAST(NULL AS CHAR) AS content,
+                COALESCE(requested.language_code, fallback.language_code, p.original_language) AS languageCode,
+                COALESCE(cat.category_code, '') AS categoryCode,
+                p.cover_image_url AS coverImageUrl,
+                p.like_count AS likeCount,
+                p.favorite_count AS favoriteCount,
+                p.comment_count AS commentCount,
+                p.view_count AS viewCount,
+                pf.created_time AS createdTime
+            FROM post_favorites pf
+            JOIN posts p ON p.post_id = pf.post_id
+            LEFT JOIN post_i18n requested ON requested.post_id = p.post_id AND requested.language_code = #{languageCode}
+            LEFT JOIN post_i18n fallback ON fallback.post_id = p.post_id AND fallback.language_code = p.original_language
+            LEFT JOIN categories cat ON cat.category_id = p.category_id
+            WHERE pf.user_id = #{userId}
+              AND p.status = 'PUBLISHED'
+        ) user_activity
+        ORDER BY createdTime DESC
+        LIMIT #{limit}
+    </select>
+
     <select id="countFriendship" resultType="int">
         SELECT COUNT(*)
         FROM friendships

@@ -8,6 +8,7 @@ import com.studyforge.admin.service.CommunityAdminService;
 import com.studyforge.admin.vo.AdminOverviewVO;
 import com.studyforge.admin.vo.AdminPostVO;
 import com.studyforge.admin.vo.AdminReportVO;
+import com.studyforge.admin.vo.AdminUserDetailVO;
 import com.studyforge.admin.vo.AdminUserVO;
 import com.studyforge.common.api.ApiResponse;
 import com.studyforge.common.constants.HttpHeaders;
@@ -98,6 +99,13 @@ public class AdminCommunityController {
                                                 @RequestParam(name = "limit", defaultValue = "50") int limit) {
         requireAdminUser(authorization);
         return ApiResponse.success(communityAdminService.listUsers(status, keyword, limit));
+    }
+
+    @GetMapping("/users/{userId}")
+    public ApiResponse<AdminUserDetailVO> userDetail(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                                     @PathVariable("userId") Long userId) {
+        requireAdminUser(authorization);
+        return ApiResponse.success(communityAdminService.userDetail(userId));
     }
 
     @PostMapping("/users/{userId}/status")

@@ -16,4 +16,9 @@ public interface AiService {
     String generateQuiz(String postContent, String language);
 
     String formatMarkdown(String content, String language);
+
+    GeneratedCover generateCover(String title, String summary, String content, String language);
+
+    record GeneratedCover(String imageDataBase64, String mimeType, String visualBrief, String prompt) {
+    }
 }

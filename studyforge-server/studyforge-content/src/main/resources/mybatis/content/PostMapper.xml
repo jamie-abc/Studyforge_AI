@@ -61,6 +61,14 @@
         WHERE post_id = #{postId}
     </select>
 
+    <select id="selectOriginalTitle" resultType="string">
+        SELECT COALESCE(pi.title, '')
+        FROM posts p
+        LEFT JOIN post_i18n pi ON pi.post_id = p.post_id AND pi.language_code = p.original_language
+        WHERE p.post_id = #{postId}
+        LIMIT 1
+    </select>
+
     <select id="selectPublishedByHotScore" resultMap="PostResultMap">
         SELECT
         <include refid="PostColumns"/>
@@ -93,7 +101,7 @@
                   )
             )
         </if>
-        ORDER BY p.featured DESC, p.hot_score DESC, p.updated_time DESC
+        ORDER BY p.created_time DESC, p.post_id DESC
         LIMIT #{limit}
     </select>
 

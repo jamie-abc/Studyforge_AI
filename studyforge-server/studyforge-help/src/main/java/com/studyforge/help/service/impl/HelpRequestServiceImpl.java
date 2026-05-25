@@ -11,6 +11,7 @@ import com.studyforge.help.mapper.HelpRequestMapper;
 import com.studyforge.help.service.HelpRequestService;
 import com.studyforge.help.vo.HelpAnswerVO;
 import com.studyforge.help.vo.HelpRequestVO;
+import com.studyforge.system.service.NotificationService;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,10 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class HelpRequestServiceImpl implements HelpRequestService {
     private final HelpRequestMapper helpRequestMapper;
     private final HelpAnswerMapper helpAnswerMapper;
+    private final NotificationService notificationService;
 
-    public HelpRequestServiceImpl(HelpRequestMapper helpRequestMapper, HelpAnswerMapper helpAnswerMapper) {
+    public HelpRequestServiceImpl(HelpRequestMapper helpRequestMapper, HelpAnswerMapper helpAnswerMapper, NotificationService notificationService) {
         this.helpRequestMapper = helpRequestMapper;
         this.helpAnswerMapper = helpAnswerMapper;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -67,7 +70,7 @@ public class HelpRequestServiceImpl implements HelpRequestService {
     @Override
     @Transactional
     public HelpAnswerVO answer(Long helpId, Long userId, CreateHelpAnswerRequest request) {
-        requireHelp(helpId);
+        HelpRequest help = requireHelp(helpId);
         if (request == null || isBlank(request.content())) {
             throw new BizException(ErrorCode.VALIDATION_ERROR, "answer content is required");
         }
@@ -77,7 +80,9 @@ public class HelpRequestServiceImpl implements HelpRequestService {
         answer.setContent(request.content().trim());
         answer.setAccepted(0);
         helpAnswerMapper.insert(answer);
-        return toVO(answer);
+        notificationService.notifyHelpAnswered(help.getUserId(), userId, helpId, answer.getAnswerId(), help.getTitle(), answer.getContent());
+        HelpAnswer created = helpAnswerMapper.selectById(answer.getAnswerId());
+        return toVO(created == null ? answer : created);
     }
 
     @Override

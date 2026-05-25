@@ -11,10 +11,12 @@ import com.studyforge.system.dto.UpdatePasswordRequest;
 import com.studyforge.system.entity.User;
 import com.studyforge.system.mapper.UserMapper;
 import com.studyforge.system.mapper.UserSocialMapper;
+import com.studyforge.system.service.NotificationService;
 import com.studyforge.system.service.UserProfileService;
 import com.studyforge.system.vo.FriendMessageVO;
 import com.studyforge.system.vo.FriendRequestVO;
 import com.studyforge.system.vo.SocialUserVO;
+import com.studyforge.system.vo.UserActivityVO;
 import com.studyforge.system.vo.UserProfileVO;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -32,10 +34,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserProfileServiceImpl implements UserProfileService {
     private final UserMapper userMapper;
     private final UserSocialMapper userSocialMapper;
+    private final NotificationService notificationService;
 
-    public UserProfileServiceImpl(UserMapper userMapper, UserSocialMapper userSocialMapper) {
+    public UserProfileServiceImpl(UserMapper userMapper, UserSocialMapper userSocialMapper, NotificationService notificationService) {
         this.userMapper = userMapper;
         this.userSocialMapper = userSocialMapper;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -136,6 +140,16 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     @Override
+    public List<UserActivityVO> listActivities(Long viewerId, Long userId, String languageCode, int limit) {
+        requireActiveUser(userId);
+        String normalizedLanguage = text(languageCode).isBlank() ? "zh_CN" : text(languageCode);
+        return userSocialMapper.selectActivities(userId, normalizedLanguage, normalizeLimit(limit))
+                .stream()
+                .map(this::toActivity)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public FriendRequestVO sendFriendRequest(Long requesterId, Long addresseeId, FriendRequestCreateRequest request) {
         if (requesterId == null) {
@@ -154,8 +168,13 @@ public class UserProfileServiceImpl implements UserProfileService {
         if (userSocialMapper.selectPendingFriendRequest(addresseeId, requesterId) != null) {
             throw new BizException(ErrorCode.VALIDATION_ERROR, "this user has already sent you a friend request");
         }
+        boolean alreadyPending = userSocialMapper.selectPendingFriendRequest(requesterId, addresseeId) != null;
         userSocialMapper.upsertFriendRequest(requesterId, addresseeId, limit(text(request == null ? null : request.message()), 300));
-        return toFriendRequest(userSocialMapper.selectPendingFriendRequest(requesterId, addresseeId), requesterId);
+        FriendRequestVO friendRequest = toFriendRequest(userSocialMapper.selectPendingFriendRequest(requesterId, addresseeId), requesterId);
+        if (!alreadyPending) {
+            notificationService.notifyFriendRequest(addresseeId, requesterId, friendRequest.requestId(), friendRequest.message());
+        }
+        return friendRequest;
     }
 
     @Override
@@ -379,6 +398,30 @@ public class UserProfileServiceImpl implements UserProfileService {
                 stringValue(row.get("receiverAvatarUrl")),
                 stringValue(row.get("content")),
                 intValue(row.get("readFlag")) == 1,
+                timeValue(row.get("createdTime"))
+        );
+    }
+
+    private UserActivityVO toActivity(Map<String, Object> row) {
+        return new UserActivityVO(
+                stringValue(row.get("activityKey")),
+                stringValue(row.get("activityType")),
+                stringValue(row.get("targetType")),
+                longValue(row.get("targetId")),
+                longValue(row.get("postId")),
+                longValue(row.get("helpId")),
+                longValue(row.get("commentId")),
+                longValue(row.get("answerId")),
+                stringValue(row.get("title")),
+                stringValue(row.get("summary")),
+                stringValue(row.get("content")),
+                stringValue(row.get("languageCode")),
+                stringValue(row.get("categoryCode")),
+                stringValue(row.get("coverImageUrl")),
+                intValue(row.get("likeCount")),
+                intValue(row.get("favoriteCount")),
+                intValue(row.get("commentCount")),
+                intValue(row.get("viewCount")),
                 timeValue(row.get("createdTime"))
         );
     }

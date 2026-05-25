@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
-import { BookOpen, CircleHelp, Home, Library, LogIn, LogOut, PenLine, Search, Settings, UserRound, Users } from '@lucide/vue';
+import { Bell, BookOpen, CircleHelp, Home, Library, LogIn, LogOut, PenLine, Search, Settings, UserRound, Users } from '@lucide/vue';
+import { getUnreadNotificationCount } from '@/api/notifications';
 import studyforgeLogo from '@/assets/studyforge-logo-mark.png';
 import { usePreferencesStore, type LanguageCode } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
@@ -9,6 +10,7 @@ import { useSessionStore } from '@/stores/session';
 const router = useRouter();
 const sessionStore = useSessionStore();
 const preferencesStore = usePreferencesStore();
+const unreadNotifications = ref(0);
 
 const languageCode = computed({
   get: () => preferencesStore.languageCode,
@@ -24,6 +26,7 @@ const copy = computed(() => {
       library: 'My Study',
       profile: 'Profile',
       friends: 'Friends',
+      notifications: 'Notifications',
       account: 'Account',
       publish: 'Write',
       help: 'Help',
@@ -41,6 +44,7 @@ const copy = computed(() => {
     library: '我的学习',
       profile: '我的主页',
       friends: '好友',
+      notifications: '通知',
       account: '账号',
       publish: '发布',
     help: '求助',
@@ -53,8 +57,42 @@ const copy = computed(() => {
 
 async function logout() {
   await sessionStore.logout();
+  unreadNotifications.value = 0;
   await router.push('/');
 }
+
+async function loadUnreadNotifications() {
+  if (!sessionStore.isAuthenticated) {
+    unreadNotifications.value = 0;
+    return;
+  }
+
+  try {
+    unreadNotifications.value = await getUnreadNotificationCount();
+  } catch {
+    unreadNotifications.value = 0;
+  }
+}
+
+function handleNotificationUpdate() {
+  void loadUnreadNotifications();
+}
+
+onMounted(() => {
+  void loadUnreadNotifications();
+  window.addEventListener('studyforge:notifications-updated', handleNotificationUpdate);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('studyforge:notifications-updated', handleNotificationUpdate);
+});
+
+watch(
+  () => [sessionStore.isAuthenticated, router.currentRoute.value.fullPath],
+  () => {
+    void loadUnreadNotifications();
+  }
+);
 </script>
 
 <template>
@@ -91,6 +129,11 @@ async function logout() {
           <Users :size="17" />
           <span>{{ copy.friends }}</span>
         </RouterLink>
+        <RouterLink to="/notifications">
+          <Bell :size="17" />
+          <span>{{ copy.notifications }}</span>
+          <small v-if="unreadNotifications > 0" class="nav-badge">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</small>
+        </RouterLink>
         <RouterLink to="/publish">
           <PenLine :size="17" />
           <span>{{ copy.publish }}</span>
@@ -123,6 +166,10 @@ async function logout() {
           <button type="button" :aria-label="copy.logout" @click="logout">
             <LogOut :size="16" />
           </button>
+          <RouterLink class="chip-icon-link notification-chip" to="/notifications" :aria-label="copy.notifications">
+            <Bell :size="16" />
+            <span v-if="unreadNotifications > 0" class="notification-badge">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</span>
+          </RouterLink>
           <RouterLink class="chip-icon-link" to="/account" :aria-label="copy.account">
             <Settings :size="16" />
           </RouterLink>

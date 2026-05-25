@@ -5,6 +5,8 @@ import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 public interface CommentMapper {
+    Comment selectById(@Param("commentId") Long commentId);
+
     List<Comment> selectVisibleByPostId(@Param("postId") Long postId);
 
     int insert(Comment comment);

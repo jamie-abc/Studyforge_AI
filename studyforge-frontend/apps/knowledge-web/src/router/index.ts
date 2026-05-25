@@ -6,6 +6,7 @@ import FriendsView from '@/views/FriendsView.vue';
 import LandingView from '@/views/LandingView.vue';
 import LibraryView from '@/views/LibraryView.vue';
 import LoginView from '@/views/LoginView.vue';
+import NotificationsView from '@/views/NotificationsView.vue';
 import PostDetailView from '@/views/PostDetailView.vue';
 import ProfileView from '@/views/ProfileView.vue';
 import PublishView from '@/views/PublishView.vue';
@@ -58,6 +59,11 @@ export const router = createRouter({
       path: '/friends',
       name: 'friends',
       component: FriendsView
+    },
+    {
+      path: '/notifications',
+      name: 'notifications',
+      component: NotificationsView
     },
     {
       path: '/account',

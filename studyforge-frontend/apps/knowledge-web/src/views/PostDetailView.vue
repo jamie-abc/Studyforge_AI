@@ -6,6 +6,7 @@ import {
   BookMarked,
   Bookmark,
   Bot,
+  CalendarClock,
   Flag,
   Flame,
   Languages,
@@ -34,6 +35,7 @@ import MarkdownRenderer from '@/components/MarkdownRenderer.vue';
 import { usePreferencesStore } from '@/stores/preferences';
 import { useSessionStore } from '@/stores/session';
 import type { AiResult, CommentItem, PostDetail, PostInteractionState, VoiceResult } from '@/types/api';
+import { formatDateTime, formatShortDateTime } from '@/utils/date';
 
 const route = useRoute();
 const preferencesStore = usePreferencesStore();
@@ -54,6 +56,8 @@ const loading = ref(false);
 const errorMessage = ref('');
 const postId = computed(() => String(route.params.postId));
 const requestedLanguage = computed(() => (typeof route.query.language === 'string' ? route.query.language : preferencesStore.languageCode));
+const postCreatedTime = computed(() => formatDateTime(post.value?.createdTime, preferencesStore.languageCode));
+const postUpdatedTime = computed(() => formatDateTime(post.value?.updatedTime, preferencesStore.languageCode));
 
 async function loadDetail() {
   loading.value = true;
@@ -196,6 +200,10 @@ async function playVoice() {
   }
   aiLoading.value = '';
 }
+
+function commentTime(comment: CommentItem) {
+  return formatShortDateTime(comment.createdTime, preferencesStore.languageCode);
+}
 </script>
 
 <template>
@@ -218,6 +226,10 @@ async function playVoice() {
           <span>
             <Languages :size="15" />
             {{ post.languageCode }}
+          </span>
+          <span v-if="postCreatedTime">
+            <CalendarClock :size="15" />
+            {{ postCreatedTime }}
           </span>
           <span>{{ post.categoryCode }}</span>
           <span>{{ interaction?.viewCount ?? post.viewCount }} 次阅读</span>
@@ -261,8 +273,11 @@ async function playVoice() {
           </div>
           <div v-if="comments.length" class="comment-list">
             <article v-for="comment in comments" :key="comment.commentId" class="comment-item">
-              <strong>#{{ comment.userId }}</strong>
-              <span>{{ comment.languageCode }}</span>
+              <div class="comment-meta">
+                <strong>#{{ comment.userId }}</strong>
+                <span>{{ comment.languageCode }}</span>
+                <time v-if="commentTime(comment)">{{ commentTime(comment) }}</time>
+              </div>
               <MarkdownRenderer class="comment-markdown" :content="comment.content" />
             </article>
           </div>
@@ -310,6 +325,14 @@ async function playVoice() {
             <div>
               <dt>编号</dt>
               <dd>#{{ post.postId }}</dd>
+            </div>
+            <div>
+              <dt>发布</dt>
+              <dd>{{ postCreatedTime || '-' }}</dd>
+            </div>
+            <div>
+              <dt>更新</dt>
+              <dd>{{ postUpdatedTime || '-' }}</dd>
             </div>
             <div>
               <dt>评论</dt>
