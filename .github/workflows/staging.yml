@@ -9,9 +9,11 @@ on:
       - "studyforge-frontend/**"
       - "sql/**"
       - "scripts/**"
+      - "deploy/docker/**"
       - "docs/server-deployment.md"
       - "docs/staging-deployment.md"
       - ".github/workflows/staging.yml"
+      - ".dockerignore"
       - ".gitignore"
   push:
     branches:
@@ -21,9 +23,11 @@ on:
       - "studyforge-frontend/**"
       - "sql/**"
       - "scripts/**"
+      - "deploy/docker/**"
       - "docs/server-deployment.md"
       - "docs/staging-deployment.md"
       - ".github/workflows/staging.yml"
+      - ".dockerignore"
       - ".gitignore"
   workflow_dispatch:
 
@@ -33,6 +37,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   sql-mysql8:
@@ -125,28 +130,51 @@ jobs:
 
       - name: Build frontend
         working-directory: studyforge-frontend
-        run: npm run build
+        run: |
+          set -euo pipefail
+          VITE_BASE_PATH=/ npm run build:knowledge
+          VITE_BASE_PATH=/portal/ npm run build:portal
 
-      - name: Prepare staging artifact
+      - name: Set Docker image names
+        id: docker_meta
+        run: |
+          set -euo pipefail
+          image_owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "api_image=ghcr.io/${image_owner}/studyforge-ai-api" >> "$GITHUB_OUTPUT"
+          echo "web_image=ghcr.io/${image_owner}/studyforge-ai-web" >> "$GITHUB_OUTPUT"
+          echo "migrate_image=ghcr.io/${image_owner}/studyforge-ai-migrate" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker images
+        run: |
+          set -euo pipefail
+          docker build -f deploy/docker/api.Dockerfile \
+            -t "${{ steps.docker_meta.outputs.api_image }}:${{ github.sha }}" \
+            -t "${{ steps.docker_meta.outputs.api_image }}:staging" .
+          docker build -f deploy/docker/web.Dockerfile \
+            -t "${{ steps.docker_meta.outputs.web_image }}:${{ github.sha }}" \
+            -t "${{ steps.docker_meta.outputs.web_image }}:staging" .
+          docker build -f deploy/docker/migrate.Dockerfile \
+            -t "${{ steps.docker_meta.outputs.migrate_image }}:${{ github.sha }}" \
+            -t "${{ steps.docker_meta.outputs.migrate_image }}:staging" .
+
+      - name: Login to GHCR
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Push Docker images
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
-          mkdir -p artifact/backend artifact/frontend artifact/scripts artifact/sql
-          cp studyforge-server/studyforge-webapi/target/studyforge-webapi-1.0.0-SNAPSHOT.war artifact/backend/studyforge-webapi.war
-          cp -R studyforge-frontend/apps/knowledge-web/dist artifact/frontend/knowledge
-          cp -R studyforge-frontend/apps/portal-web/dist artifact/frontend/portal
-          cp scripts/import_local_db.sh artifact/scripts/
-          cp sql/[0-9][0-9][0-9]_*.sql artifact/sql/
-          tar -czf studyforge-staging-release.tar.gz -C artifact .
-
-      - name: Upload staging artifact
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v7
-        with:
-          name: studyforge-staging-release
-          path: studyforge-staging-release.tar.gz
-          if-no-files-found: error
-          retention-days: 7
+          docker push "${{ steps.docker_meta.outputs.api_image }}:${{ github.sha }}"
+          docker push "${{ steps.docker_meta.outputs.api_image }}:staging"
+          docker push "${{ steps.docker_meta.outputs.web_image }}:${{ github.sha }}"
+          docker push "${{ steps.docker_meta.outputs.web_image }}:staging"
+          docker push "${{ steps.docker_meta.outputs.migrate_image }}:${{ github.sha }}"
+          docker push "${{ steps.docker_meta.outputs.migrate_image }}:staging"
 
   deploy-staging:
     name: Deploy Staging
@@ -160,11 +188,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
-      - name: Download staging artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: studyforge-staging-release
 
       - name: Check staging deploy secrets
         id: deploy_secrets
@@ -195,7 +218,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$STAGING_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
-      - name: Upload release and deploy script
+      - name: Upload Docker deployment files
         if: steps.deploy_secrets.outputs.configured == 'true'
         env:
           STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
@@ -204,7 +227,9 @@ jobs:
         run: |
           set -euo pipefail
           scp -i ~/.ssh/deploy_key -P "$STAGING_DEPLOY_PORT" \
-            studyforge-staging-release.tar.gz scripts/deploy_staging.sh \
+            deploy/docker/docker-compose.staging.yml \
+            deploy/docker/.env.staging.example \
+            scripts/deploy_staging_docker.sh \
             "${STAGING_DEPLOY_USER}@${STAGING_DEPLOY_HOST}:/tmp/"
 
       - name: Deploy on staging server
@@ -213,8 +238,11 @@ jobs:
           STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
           STAGING_DEPLOY_PORT: ${{ secrets.STAGING_DEPLOY_PORT }}
           STAGING_DEPLOY_USER: ${{ secrets.STAGING_DEPLOY_USER }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_READ_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          GHCR_READ_TOKEN_B64="$(printf '%s' "$GHCR_READ_TOKEN" | base64 -w0)"
           ssh -i ~/.ssh/deploy_key -p "$STAGING_DEPLOY_PORT" \
             "${STAGING_DEPLOY_USER}@${STAGING_DEPLOY_HOST}" \
-            "bash /tmp/deploy_staging.sh /tmp/studyforge-staging-release.tar.gz ${{ github.sha }}"
+            "GHCR_USERNAME='${GHCR_USERNAME}' GHCR_READ_TOKEN_B64='${GHCR_READ_TOKEN_B64}' bash /tmp/deploy_staging_docker.sh"

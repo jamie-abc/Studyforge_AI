@@ -157,23 +157,25 @@ This keeps the content model extensible beyond fixed `zh/en` columns.
 
 ## Deployment
 
-Server deployment preparation is documented in:
+Docker-based server deployment preparation is documented in:
 
 ```text
 docs/server-deployment.md
+docs/staging-deployment.md
 ```
 
-Build a release artifact:
-
-```bash
-./scripts/build_release.sh
-```
-
-Production examples are included under:
+Staging uses GitHub Actions to build and push Docker images to GHCR, then runs Docker Compose on the server. The default staging web port is:
 
 ```text
-deploy/nginx/studyforge.conf.example
-deploy/systemd/studyforge-api.service.example
-studyforge-frontend/apps/knowledge-web/.env.production.example
-studyforge-frontend/apps/portal-web/.env.production.example
+7897
+```
+
+The current Docker deployment files are:
+
+```text
+deploy/docker/api.Dockerfile
+deploy/docker/web.Dockerfile
+deploy/docker/migrate.Dockerfile
+deploy/docker/docker-compose.staging.yml
+scripts/deploy_staging_docker.sh
 ```
