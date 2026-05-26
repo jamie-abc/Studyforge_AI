@@ -115,9 +115,10 @@ http://localhost:5173
 For a new database, run the schema first. Import the seed script only when you intentionally want to reset the local demo data:
 
 ```bash
-mysql -u root -p < sql/001_schema.sql
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS studyforge_ai CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -p studyforge_ai < sql/001_schema.sql
 # Warning: this clears local business data before loading demo rows.
-mysql -u root -p < sql/002_seed_data.sql
+mysql -u root -p studyforge_ai < sql/002_seed_data.sql
 ```
 
 On this Linux machine, the available local database account is `lynn` without a password, and it can create `test_*` databases. The local development database has been initialized as:

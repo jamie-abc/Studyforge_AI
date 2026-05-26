@@ -72,6 +72,7 @@ Require branches to be up to date before merging
 
 ```text
 Automated Review
+SQL MySQL 8 Import
 ```
 
 ## 重要安全说明

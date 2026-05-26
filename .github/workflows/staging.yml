@@ -9,6 +9,7 @@ on:
       - "studyforge-frontend/**"
       - "sql/**"
       - "scripts/**"
+      - "docs/server-deployment.md"
       - "docs/staging-deployment.md"
       - ".github/workflows/staging.yml"
       - ".gitignore"
@@ -20,6 +21,7 @@ on:
       - "studyforge-frontend/**"
       - "sql/**"
       - "scripts/**"
+      - "docs/server-deployment.md"
       - "docs/staging-deployment.md"
       - ".github/workflows/staging.yml"
       - ".gitignore"
@@ -33,6 +35,44 @@ permissions:
   contents: read
 
 jobs:
+  sql-mysql8:
+    name: SQL MySQL 8 Import
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: studyforge_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MySQL client
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y default-mysql-client
+
+      - name: Import schema, seed, and migrations
+        env:
+          DB_CLIENT: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: "3306"
+          DB_NAME: studyforge_ci
+          DB_USER: root
+          RESET_SEED: "1"
+        run: ./scripts/import_local_db.sh
+
   review:
     name: Automated Review
     runs-on: ubuntu-latest
@@ -109,7 +149,9 @@ jobs:
   deploy-staging:
     name: Deploy Staging
     runs-on: ubuntu-latest
-    needs: review
+    needs:
+      - review
+      - sql-mysql8
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     environment: staging
 

@@ -15,15 +15,33 @@ Spring MVC Controller 返回 JSON
 
 ## 1. 服务器依赖
 
-建议准备：
+当前推荐的自动部署方式是 GitHub Actions 构建发布包，再通过 SSH 上传到服务器。服务器不需要稳定访问 GitHub，也不需要在服务器上安装 Maven、Node.js 或 clone 仓库。
+
+服务器运行时依赖：
 
 - JDK 17
+- Tomcat 10.1.x，用于运行 `studyforge-webapi.war`
+- MySQL 8.x；本地开发可用 MariaDB，但服务器以 MySQL 8 为准
+- Nginx，用于托管两个前端站点并反向代理 API
+- rsync、curl、OpenSSH Server
+
+GitHub Actions / 本机构建环境依赖：
+
 - Maven 3.9+
 - Node.js 20.19+
-- MySQL 8 或 MariaDB 10.6+
-- Nginx，用于托管两个前端站点并反向代理 API
+
+Tomcat 不是 Spring MVC 代码本身唯一能用的运行方式，但当前 `scripts/deploy_staging.sh` 明确按 WAR 包部署：它会把 `studyforge-webapi.war` 放到 `/opt/tomcat-staging/webapps/ROOT.war`，然后重启 `tomcat-staging.service`。如果不用 Tomcat，就需要同步改部署脚本和 systemd 服务。
 
 ## 2. 数据库初始化
+
+数据库版本标准：
+
+```text
+服务器 / staging / production: MySQL 8.x，目前服务器已验证 MySQL 8.0.45
+当前本机开发环境: MariaDB 12.x，目前本机已验证 MariaDB 12.2.2
+```
+
+仓库 SQL 必须以 MySQL 8 为基准，同时保持 MariaDB 开发环境可导入。不要使用 MariaDB-only 语法，例如 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`。需要幂等加列时，使用 `information_schema + PREPARE/EXECUTE` 这种 MySQL 8 与 MariaDB 都支持的写法。
 
 新服务器先创建数据库账号，再导入结构和非破坏性迁移：
 
@@ -40,6 +58,8 @@ DB_HOST=127.0.0.1 \
 ```
 
 `scripts/import_local_db.sh` 会导入 `001_schema.sql`，并自动执行 `003_*.sql`、`004_*.sql` 这类非破坏性迁移。不要在已有业务数据的服务器上执行 `RESET_SEED=1`。
+
+SQL 脚本不再内置 `CREATE DATABASE` 或 `USE`，必须由命令行显式选择数据库。这样同一套脚本可以稳定用于本地 `test_studyforge_ai_v2`、staging `studyforge_ai` 或 production 数据库，不会在导入过程中切换到错误库。
 
 ## 3. 后端运行配置
 
@@ -62,13 +82,15 @@ STUDYFORGE_UPLOAD_DIR=/var/lib/studyforge/uploads
 
 这个目录需要持久化和备份，不能随着前端静态文件发布一起清空。
 
-本仓库提供了一个 systemd 示例：
+当前 staging 自动部署默认重启服务器上的 `tomcat-staging.service`。这个服务需要提前在服务器上配置好 Tomcat 10.1.x，并把 `BACKEND_WAR_DIR` 指向 Tomcat 的 `webapps` 目录。
+
+仓库中还有一个 Jetty/Maven 运行方式的 systemd 示例：
 
 ```text
 deploy/systemd/studyforge-api.service.example
 ```
 
-示例用 Maven 启动 Jetty 插件运行 Spring MVC API，适合当前 Maven 多模块工程继续保持前后端分离。
+这个示例适合本地或手动服务器构建场景，不是当前 GitHub Actions staging 自动部署的默认路径。
 
 ## 4. 前端构建
 
@@ -85,7 +107,7 @@ studyforge-frontend/apps/knowledge-web/.env.production.example
 studyforge-frontend/apps/portal-web/.env.production.example
 ```
 
-构建命令：
+GitHub Actions 会执行下面的构建命令并上传构建产物，服务器只接收 `dist` 目录：
 
 ```bash
 cd studyforge-frontend
