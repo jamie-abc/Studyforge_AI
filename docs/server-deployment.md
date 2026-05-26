@@ -24,36 +24,54 @@ OpenSSH Server
 curl / vim / tar 这类基础工具
 ```
 
-在 Arch Linux 上可以安装：
+服务器已经确认是 Alibaba Cloud Linux 3 / alinux3，不是 Arch Linux。Arch Linux 只是本机开发环境。
+
+在服务器 root shell 下可以执行仓库脚本：
 
 ```bash
-sudo pacman -Syu
-sudo pacman -S --needed docker docker-compose openssh curl vim
-sudo systemctl enable --now docker
-sudo systemctl enable --now sshd
-```
-
-把部署用户加入 `docker` 组：
-
-```bash
-sudo usermod -aG docker deploy
-```
-
-然后重新登录 `deploy` 用户，让组权限生效。
-
-仓库也提供了一个 Arch Linux 服务器初始化脚本，可以在服务器上执行：
-
-```bash
-bash scripts/bootstrap_staging_docker_arch.sh
+bash scripts/bootstrap_staging_docker_alinux.sh
 ```
 
 如果你把本机生成的 deploy 公钥作为环境变量传入，它会顺便写入 `/home/deploy/.ssh/authorized_keys`：
 
 ```bash
-SSH_PUBLIC_KEY='ssh-ed25519 ...' bash scripts/bootstrap_staging_docker_arch.sh
+SSH_PUBLIC_KEY='ssh-ed25519 ...' bash scripts/bootstrap_staging_docker_alinux.sh
 ```
 
-如果是 Alibaba Cloud Linux / RHEL 系发行版，安装方式不同，但目标仍然只是 Docker 和 SSH。
+脚本会做这些事：
+
+```text
+安装 Docker Engine / Docker Compose plugin / OpenSSH Server
+启动 docker 和 sshd
+创建 deploy 用户
+把 deploy 加入 docker 组
+创建 /opt/studyforge-staging
+```
+
+如果不用脚本，等价手动命令是：
+
+```bash
+PM=$(command -v dnf || command -v yum)
+
+$PM makecache -y
+$PM install -y yum-utils device-mapper-persistent-data lvm2 curl vim openssh-server ca-certificates
+
+curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo \
+  -o /etc/yum.repos.d/docker-ce.repo
+
+$PM install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+systemctl enable --now docker
+systemctl enable --now sshd
+
+useradd -m -s /bin/bash deploy 2>/dev/null || true
+usermod -aG docker deploy
+
+mkdir -p /opt/studyforge-staging
+chown -R deploy:deploy /opt/studyforge-staging
+```
+
+重新登录 `deploy` 用户后，docker 组权限才会生效。
 
 ## 2. Docker 服务
 
@@ -66,7 +84,7 @@ deploy/docker/docker-compose.staging.yml
 包含四个服务：
 
 ```text
-mysql    mysql:8.0
+mysql    GHCR 中的 studyforge-ai-mysql:staging，内容基于 mysql:8.0
 migrate  仓库 SQL + import_local_db.sh 的一次性迁移容器
 api      tomcat:10.1-jdk17-temurin + ROOT.war
 web      nginx:1.27-alpine + 两个 Vue dist
@@ -132,6 +150,7 @@ WEB_PORT=7897
 API_IMAGE=ghcr.io/niit-workshop-of-shzu/studyforge-ai-api:staging
 WEB_IMAGE=ghcr.io/niit-workshop-of-shzu/studyforge-ai-web:staging
 MIGRATE_IMAGE=ghcr.io/niit-workshop-of-shzu/studyforge-ai-migrate:staging
+MYSQL_IMAGE=ghcr.io/niit-workshop-of-shzu/studyforge-ai-mysql:staging
 
 MYSQL_ROOT_PASSWORD=123456
 MYSQL_DATABASE=studyforge_ai

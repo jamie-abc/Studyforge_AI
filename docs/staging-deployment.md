@@ -22,7 +22,7 @@ ghcr.io/niit-workshop-of-shzu/studyforge-ai-migrate:staging
 服务器使用 `deploy/docker/docker-compose.staging.yml` 启动：
 
 ```text
-mysql    MySQL 8.0，使用 Docker volume 持久化
+mysql    GHCR 中的 MySQL 8.0 镜像，使用 Docker volume 持久化
 migrate  一次性数据库结构迁移，不导入 seed，不清业务数据
 api      Tomcat 10.1 + studyforge-webapi.war
 web      Nginx + 用户端 dist + 管理端 dist + /api/v1 反向代理
@@ -93,6 +93,7 @@ MYSQL_ROOT_PASSWORD=123456
 MYSQL_DATABASE=studyforge_ai
 MYSQL_USER=studyforge
 MYSQL_PASSWORD=123456
+MYSQL_IMAGE=ghcr.io/niit-workshop-of-shzu/studyforge-ai-mysql:staging
 ```
 
 当前 staging 模板按你的要求使用 `123456`。这只适合作为临时 staging 密码；MySQL 容器第一次初始化后，修改这两个值不会自动重置已有 Docker volume 里的数据库密码。

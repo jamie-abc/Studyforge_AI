@@ -143,6 +143,7 @@ jobs:
           echo "api_image=ghcr.io/${image_owner}/studyforge-ai-api" >> "$GITHUB_OUTPUT"
           echo "web_image=ghcr.io/${image_owner}/studyforge-ai-web" >> "$GITHUB_OUTPUT"
           echo "migrate_image=ghcr.io/${image_owner}/studyforge-ai-migrate" >> "$GITHUB_OUTPUT"
+          echo "mysql_image=ghcr.io/${image_owner}/studyforge-ai-mysql" >> "$GITHUB_OUTPUT"
 
       - name: Build Docker images
         run: |
@@ -156,6 +157,9 @@ jobs:
           docker build -f deploy/docker/migrate.Dockerfile \
             -t "${{ steps.docker_meta.outputs.migrate_image }}:${{ github.sha }}" \
             -t "${{ steps.docker_meta.outputs.migrate_image }}:staging" .
+          docker build -f deploy/docker/mysql.Dockerfile \
+            -t "${{ steps.docker_meta.outputs.mysql_image }}:${{ github.sha }}" \
+            -t "${{ steps.docker_meta.outputs.mysql_image }}:staging" .
 
       - name: Login to GHCR
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -175,6 +179,8 @@ jobs:
           docker push "${{ steps.docker_meta.outputs.web_image }}:staging"
           docker push "${{ steps.docker_meta.outputs.migrate_image }}:${{ github.sha }}"
           docker push "${{ steps.docker_meta.outputs.migrate_image }}:staging"
+          docker push "${{ steps.docker_meta.outputs.mysql_image }}:${{ github.sha }}"
+          docker push "${{ steps.docker_meta.outputs.mysql_image }}:staging"
 
   deploy-staging:
     name: Deploy Staging

@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:8.0
+    image: ${MYSQL_IMAGE:-ghcr.io/niit-workshop-of-shzu/studyforge-ai-mysql:staging}
     restart: unless-stopped
     environment:
       TZ: Asia/Shanghai

@@ -176,6 +176,8 @@ The current Docker deployment files are:
 deploy/docker/api.Dockerfile
 deploy/docker/web.Dockerfile
 deploy/docker/migrate.Dockerfile
+deploy/docker/mysql.Dockerfile
 deploy/docker/docker-compose.staging.yml
+scripts/bootstrap_staging_docker_alinux.sh
 scripts/deploy_staging_docker.sh
 ```
