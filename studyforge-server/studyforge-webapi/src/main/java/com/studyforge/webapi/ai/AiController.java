@@ -4,6 +4,8 @@ import com.studyforge.ai.entity.AiLog;
 import com.studyforge.ai.mapper.AiLogMapper;
 import com.studyforge.ai.service.AiService;
 import com.studyforge.ai.service.AiService.GeneratedCover;
+import com.studyforge.ai.service.AiTokenBillingService;
+import com.studyforge.ai.service.AiTokenUsageLogger;
 import com.studyforge.ai.vo.AiLogVO;
 import com.studyforge.ai.vo.AiResultVO;
 import com.studyforge.common.api.ApiResponse;
@@ -38,18 +40,24 @@ public class AiController {
     private final PostQueryService postQueryService;
     private final AuthService authService;
     private final UploadedFileService uploadedFileService;
+    private final AiTokenBillingService tokenBillingService;
+    private final AiTokenUsageLogger tokenUsageLogger;
     private final Path imageRoot;
 
     public AiController(AiService aiService,
                         AiLogMapper aiLogMapper,
                         PostQueryService postQueryService,
                         AuthService authService,
-                        UploadedFileService uploadedFileService) {
+                        UploadedFileService uploadedFileService,
+                        AiTokenBillingService tokenBillingService,
+                        AiTokenUsageLogger tokenUsageLogger) {
         this.aiService = aiService;
         this.aiLogMapper = aiLogMapper;
         this.postQueryService = postQueryService;
         this.authService = authService;
         this.uploadedFileService = uploadedFileService;
+        this.tokenBillingService = tokenBillingService;
+        this.tokenUsageLogger = tokenUsageLogger;
         this.imageRoot = UploadStorage.imageRoot();
     }
 
@@ -61,8 +69,21 @@ public class AiController {
         String contentLanguage = contentLanguage(request);
         String promptLanguage = promptLanguage(request);
         PostDetailVO post = postQueryService.getDetail(postId, contentLanguage);
-        String text = aiService.generateSummary(post.content(), promptLanguage);
-        log(userId, postId, "SUMMARY", post.content(), text, 1);
+        
+        // 使用计费服务调用 API（获取完整响应）
+        String prompt = buildSummaryPrompt(post.content(), promptLanguage);
+        String fullResponse = tokenBillingService.callApiWithUsage(prompt);
+        String text = fullResponse != null ? tokenBillingService.extractTextFromResponse(fullResponse) : "";
+        
+        // 记录日志并获取 logId
+        Long logId = logWithId(userId, postId, "SUMMARY", post.content(), text, 1);
+        
+        // 记录 token 使用情况
+        if (fullResponse != null && logId != null) {
+            String modelName = tokenBillingService.getCurrentModel();
+            tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+        }
+        
         return ApiResponse.success(new AiResultVO("SUMMARY", promptLanguage, text));
     }
 
@@ -74,8 +95,18 @@ public class AiController {
         String contentLanguage = contentLanguage(request);
         String promptLanguage = promptLanguage(request);
         PostDetailVO post = postQueryService.getDetail(postId, contentLanguage);
-        String text = aiService.generateQuiz(post.content(), promptLanguage);
-        log(userId, postId, "REVIEW_CARD", post.content(), text, 1);
+        
+        String prompt = buildQuizPrompt(post.content(), promptLanguage);
+        String fullResponse = tokenBillingService.callApiWithUsage(prompt);
+        String text = fullResponse != null ? tokenBillingService.extractTextFromResponse(fullResponse) : "";
+        
+        Long logId = logWithId(userId, postId, "REVIEW_CARD", post.content(), text, 1);
+        
+        if (fullResponse != null && logId != null) {
+            String modelName = tokenBillingService.getCurrentModel();
+            tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+        }
+        
         return ApiResponse.success(new AiResultVO("REVIEW_CARD", promptLanguage, text));
     }
 
@@ -87,8 +118,19 @@ public class AiController {
         String contentLanguage = request == null || isBlank(request.contentLanguageCode()) ? answerLanguage(request) : request.contentLanguageCode();
         String promptLanguage = request == null || isBlank(request.promptLanguageCode()) ? answerLanguage(request) : request.promptLanguageCode();
         PostDetailVO post = postQueryService.getDetail(postId, contentLanguage);
-        String text = aiService.answerQuestion(post.content(), request == null ? "" : request.question(), promptLanguage);
-        log(userId, postId, "QUESTION", request == null ? "" : request.question(), text, 1);
+        
+        String question = request == null ? "" : request.question();
+        String prompt = buildQuestionPrompt(post.content(), question, promptLanguage);
+        String fullResponse = tokenBillingService.callApiWithUsage(prompt);
+        String text = fullResponse != null ? tokenBillingService.extractTextFromResponse(fullResponse) : "";
+        
+        Long logId = logWithId(userId, postId, "QUESTION", question, text, 1);
+        
+        if (fullResponse != null && logId != null) {
+            String modelName = tokenBillingService.getCurrentModel();
+            tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+        }
+        
         return ApiResponse.success(new AiResultVO("QUESTION", promptLanguage, text));
     }
 
@@ -106,8 +148,18 @@ public class AiController {
         if (source.length() > 12000) {
             throw new BizException(ErrorCode.VALIDATION_ERROR, "content is too long");
         }
-        String text = aiService.formatMarkdown(source, promptLanguage);
-        log(userId, null, "MARKDOWN_FORMAT", source, text, 1);
+        
+        String prompt = buildMarkdownPrompt(source, promptLanguage);
+        String fullResponse = tokenBillingService.callApiWithUsage(prompt);
+        String text = fullResponse != null ? tokenBillingService.extractTextFromResponse(fullResponse) : "";
+        
+        Long logId = logWithId(userId, null, "MARKDOWN_FORMAT", source, text, 1);
+        
+        if (fullResponse != null && logId != null) {
+            String modelName = tokenBillingService.getCurrentModel();
+            tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+        }
+        
         return ApiResponse.success(new AiResultVO("MARKDOWN_FORMAT", promptLanguage, text));
     }
 
@@ -164,7 +216,10 @@ public class AiController {
         return ApiResponse.success(cards);
     }
 
-    private void log(Long userId, Long postId, String aiType, String requestText, String responseText, int success) {
+    /**
+     * 记录 AI 日志并返回 logId
+     */
+    private Long logWithId(Long userId, Long postId, String aiType, String requestText, String responseText, int success) {
         AiLog log = new AiLog();
         log.setUserId(userId);
         log.setPostId(postId);
@@ -173,6 +228,11 @@ public class AiController {
         log.setResponseText(responseText);
         log.setSuccess(success);
         aiLogMapper.insert(log);
+        return log.getLogId();
+    }
+
+    private void log(Long userId, Long postId, String aiType, String requestText, String responseText, int success) {
+        logWithId(userId, postId, aiType, requestText, responseText, success);
     }
 
     private String contentLanguage(AiLanguageRequest request) {
@@ -191,6 +251,144 @@ public class AiController {
 
     private String answerLanguage(AiQuestionRequest request) {
         return request == null || isBlank(request.answerLanguage()) ? "zh_CN" : request.answerLanguage();
+    }
+
+    /**
+     * 构建摘要生成的 prompt
+     */
+    private String buildSummaryPrompt(String content, String language) {
+        boolean isEnglish = language != null && language.toLowerCase().startsWith("en");
+        if (isEnglish) {
+            return """
+                    Please summarize this learning post in English. Make the output feel like an AI summary in a real learning product:
+                    1. Start with 3 key points.
+                    2. Then add one concise takeaway worth saving.
+                    3. Do not mention "according to the document" or "as an AI".
+
+                    Website language: English
+
+                    Content:
+                    %s
+                    """.formatted(content);
+        } else {
+            return """
+                    请用中文提炼这篇学习内容。输出要像真实学习产品里的 AI 摘要：
+                    1. 先给 3 条要点；
+                    2. 再给 1 句适合收藏的结论；
+                    3. 不要提“根据文档/作为 AI”。
+
+                    网站语言：中文
+
+                    内容：
+                    %s
+                    """.formatted(content);
+        }
+    }
+
+    /**
+     * 构建复习卡片生成的 prompt
+     */
+    private String buildQuizPrompt(String content, String language) {
+        boolean isEnglish = language != null && language.toLowerCase().startsWith("en");
+        if (isEnglish) {
+            return """
+                    Turn this learning post into review cards. Output 4 cards. Each card must include:
+                    - Question
+                    - Short answer
+                    - Keywords for review
+
+                    Website language: English
+
+                    Content:
+                    %s
+                    """.formatted(content);
+        } else {
+            return """
+                    请把这篇学习内容整理成复习卡片。输出 4 张卡片，每张包含：
+                    - 问题
+                    - 简短答案
+                    - 适合回顾的关键词
+
+                    网站语言：中文
+
+                    内容：
+                    %s
+                    """.formatted(content);
+        }
+    }
+
+    /**
+     * 构建问题回答的 prompt
+     */
+    private String buildQuestionPrompt(String postContent, String question, String language) {
+        boolean isEnglish = language != null && language.toLowerCase().startsWith("en");
+        if (isEnglish) {
+            return """
+                    You are StudyForge AI's learning assistant. Answer only from the article content.
+                    Answer in English.
+
+                    Article:
+                    %s
+
+                    Question:
+                    %s
+                    """.formatted(postContent, question);
+        } else {
+            return """
+                    你是 StudyForge AI 的学习助手。请只依据文章内容回答问题。
+                    请用中文回答。
+
+                    文章：
+                    %s
+
+                    问题：
+                    %s
+                    """.formatted(postContent, question);
+        }
+    }
+
+    /**
+     * 构建 Markdown 格式化的 prompt
+     */
+    private String buildMarkdownPrompt(String content, String language) {
+        boolean isEnglish = language != null && language.toLowerCase().startsWith("en");
+        if (isEnglish) {
+            return """
+                    You are StudyForge AI's article formatting assistant. Reformat the user's plain text into Markdown suitable for a learning community post.
+
+                    Strict rules:
+                    - Output Markdown body only. Do not add explanations, prefaces, or code fences around the whole answer.
+                    - Preserve the user's meaning. Do not add facts or invent data.
+                    - Keep the source text's own language. If the source mixes Chinese and English, keep the mixed expression.
+                    - Add level-2 or level-3 headings, lists, quotes, tables, or code blocks when they naturally fit.
+                    - If the source already includes links, code, steps, or checklists, keep them and make them clearer.
+                    - Do not insert images that are not present in the source.
+                    - The output should be ready to paste into the Markdown editor.
+
+                    Website language: English
+
+                    Source:
+                    %s
+                    """.formatted(content);
+        } else {
+            return """
+                    你是 StudyForge AI 的文章排版助手。请把用户的纯文字整理成适合学习社区发布的 Markdown。
+
+                    严格要求：
+                    - 只输出 Markdown 正文，不要输出解释、前言或代码围栏。
+                    - 保留用户原意，不新增事实、不编造数据。
+                    - 使用用户原文语言；如果原文混合中英，可以保留混合表达。
+                    - 根据内容自然加入二级/三级标题、列表、引用、表格或代码块。
+                    - 如果原文已经有链接、代码、步骤、清单，请保留并排得更清楚。
+                    - 不要插入不存在的图片。
+                    - 输出要适合直接写入 Markdown 编辑器。
+
+                    网站语言：中文
+
+                    原文：
+                    %s
+                    """.formatted(content);
+        }
     }
 
     private String trim(String value, int maxLength) {

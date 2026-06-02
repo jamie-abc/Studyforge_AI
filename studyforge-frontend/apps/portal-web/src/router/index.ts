@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import AdminDashboardView from '@/views/AdminDashboardView.vue';
+import AiDashboardView from '@/views/AiDashboardView.vue';
 import CommunityManageView from '@/views/CommunityManageView.vue';
 import FeedView from '@/views/FeedView.vue';
 import LoginView from '@/views/LoginView.vue';
@@ -47,6 +48,11 @@ export const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: SettingsView
+    },
+    {
+      path: '/ai-dashboard',
+      name: 'ai-dashboard',
+      component: AiDashboardView
     }
   ]
 });

@@ -9,7 +9,8 @@ import {
   LogOut,
   Settings,
   Server,
-  UserRound
+  UserRound,
+  Activity
 } from '@lucide/vue';
 import studyforgeLogo from '@/assets/studyforge-logo-mark.png';
 import { useAuthStore } from '@/stores/auth';
@@ -55,6 +56,10 @@ async function handleLogout() {
         <RouterLink to="/community">
           <ShieldCheck :size="18" />
           <span>社区管理</span>
+        </RouterLink>
+        <RouterLink to="/ai-dashboard">
+          <Activity :size="18" />
+          <span>AI 监控</span>
         </RouterLink>
         <RouterLink to="/settings">
           <Settings :size="18" />

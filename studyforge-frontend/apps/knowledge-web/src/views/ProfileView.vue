@@ -19,6 +19,7 @@ import {
   Users
 } from '@lucide/vue';
 import { ApiError } from '@/api/http';
+import { getMyAiUsage } from '@/api/ai-usage';
 import { followUser, getFriends, getMyProfile, getUserActivities, getUserPosts, getUserProfile, reviewFriendRequest, sendFriendRequest, unfollowUser } from '@/api/users';
 import EmptyState from '@/components/EmptyState.vue';
 import KnowledgeCard from '@/components/KnowledgeCard.vue';
@@ -29,7 +30,7 @@ import { useSessionStore } from '@/stores/session';
 import type { PostSummary, SocialUser, TopicCategory, UserActivity, UserProfile } from '@/types/api';
 import { formatShortDateTime } from '@/utils/date';
 
-type ProfileTab = 'activity' | 'posts' | 'friends';
+type ProfileTab = 'activity' | 'posts' | 'friends' | 'ai-usage';
 
 const route = useRoute();
 const preferencesStore = usePreferencesStore();
@@ -39,6 +40,7 @@ const profile = ref<UserProfile | null>(null);
 const posts = ref<PostSummary[]>([]);
 const activities = ref<UserActivity[]>([]);
 const friends = ref<SocialUser[]>([]);
+const aiUsage = ref<any>(null);
 const loading = ref(false);
 const actionLoading = ref(false);
 const errorMessage = ref('');
@@ -73,6 +75,7 @@ async function loadProfile() {
     posts.value = [];
     activities.value = [];
     friends.value = [];
+    aiUsage.value = null;
     return;
   }
   if (!targetUserId.value) {
@@ -93,6 +96,16 @@ async function loadProfile() {
     posts.value = postData;
     friends.value = friendData;
     activities.value = activityData;
+    
+    // 如果是自己的主页，加载 AI 用量
+    if (isMeRoute.value) {
+      try {
+        aiUsage.value = await getMyAiUsage();
+      } catch (error) {
+        console.warn('Failed to load AI usage:', error);
+        aiUsage.value = null;
+      }
+    }
   } catch (error) {
     if (error instanceof ApiError && error.code === 4010) {
       await sessionStore.logout();
@@ -332,6 +345,7 @@ watch(
         <button type="button" :class="{ active: activeTab === 'activity' }" @click="activeTab = 'activity'">动态</button>
         <button type="button" :class="{ active: activeTab === 'posts' }" @click="activeTab = 'posts'">投稿</button>
         <button type="button" :class="{ active: activeTab === 'friends' }" @click="activeTab = 'friends'">好友</button>
+        <button v-if="profile.self" type="button" :class="{ active: activeTab === 'ai-usage' }" @click="activeTab = 'ai-usage'">AI 用量</button>
       </nav>
 
       <section v-if="activeTab === 'activity'" class="profile-content-grid">
@@ -408,7 +422,7 @@ watch(
         <EmptyState v-if="posts.length === 0" title="还没有投稿" description="发布后的文章会展示在这里。" />
       </section>
 
-      <section v-else class="social-grid">
+      <section v-else-if="activeTab === 'friends'" class="social-grid">
         <article v-for="user in friends" :key="user.userId" class="social-card">
           <img v-if="user.avatarUrl" :src="user.avatarUrl" alt="" />
           <UserRound v-else :size="24" />
@@ -424,6 +438,286 @@ watch(
         </article>
         <EmptyState v-if="friends.length === 0" title="还没有好友" description="通过好友申请后，好友会显示在这里。关注和粉丝不会混到好友列表里。" />
       </section>
+
+      <!-- AI 用量标签页 -->
+      <section v-else-if="activeTab === 'ai-usage'" class="ai-usage-section">
+        <h2>AI 使用统计</h2>
+        
+        <div v-if="!aiUsage" class="empty-usage">
+          <p>暂无 AI 使用记录</p>
+        </div>
+        
+        <template v-else>
+          <!-- 概览卡片 -->
+          <div class="usage-overview-cards">
+            <div class="usage-card">
+              <div class="card-content">
+                <div class="card-value">{{ aiUsage.totalCalls || 0 }}</div>
+                <div class="card-label">总调用次数</div>
+              </div>
+            </div>
+            <div class="usage-card">
+              <div class="card-content">
+                <div class="card-value">{{ aiUsage.totalTokens || 0 }}</div>
+                <div class="card-label">总 Token</div>
+              </div>
+            </div>
+            <div class="usage-card">
+              <div class="card-content">
+                <div class="card-value">¥{{ (aiUsage.totalCostYuan || 0).toFixed(4) }}</div>
+                <div class="card-label">总费用</div>
+              </div>
+            </div>
+            <div class="usage-card">
+              <div class="card-content">
+                <div class="card-value">{{ aiUsage.successRate || 0 }}%</div>
+                <div class="card-label">成功率</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Token 详情 -->
+          <div class="usage-details">
+            <h3>Token 使用情况</h3>
+            <div class="token-breakdown">
+              <div class="token-item">
+                <span class="token-label">输入 Token</span>
+                <span class="token-value">{{ aiUsage.totalPromptTokens || 0 }}</span>
+              </div>
+              <div class="token-item">
+                <span class="token-label">输出 Token</span>
+                <span class="token-value">{{ aiUsage.totalCompletionTokens || 0 }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 功能分布 -->
+          <div class="usage-details">
+            <h3>功能使用分布</h3>
+            <div class="feature-distribution">
+              <div class="feature-item">
+                <span class="feature-name">摘要生成</span>
+                <span class="feature-count">{{ aiUsage.summaryCalls || 0 }} 次</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-name">复习卡片</span>
+                <span class="feature-count">{{ aiUsage.reviewCardCalls || 0 }} 次</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-name">问答</span>
+                <span class="feature-count">{{ aiUsage.questionCalls || 0 }} 次</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-name">Markdown 格式化</span>
+                <span class="feature-count">{{ aiUsage.markdownFormatCalls || 0 }} 次</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 成功/失败统计 -->
+          <div class="usage-details">
+            <h3>调用结果统计</h3>
+            <div class="result-stats">
+              <div class="result-item success">
+                <span class="result-label">成功</span>
+                <span class="result-value">{{ aiUsage.successfulCalls || 0 }} 次</span>
+              </div>
+              <div class="result-item failed">
+                <span class="result-label">失败</span>
+                <span class="result-value">{{ aiUsage.failedCalls || 0 }} 次</span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </section>
     </template>
   </section>
 </template>
+
+<style scoped>
+/* AI 用量页面样式 */
+.ai-usage-section {
+  padding: 24px;
+  background: #f9fafb;
+  border-radius: 12px;
+  margin-top: 20px;
+}
+
+.ai-usage-section h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 20px;
+}
+
+.empty-usage {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+}
+
+/* 概览卡片 */
+.usage-overview-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.usage-card {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+}
+
+.usage-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.card-label {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* 详情区域 */
+.usage-details {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.usage-details h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 16px;
+}
+
+/* Token 分解 */
+.token-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.token-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.token-label {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.token-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* 功能分布 */
+.feature-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feature-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.feature-item:hover {
+  background: #f3f4f6;
+}
+
+.feature-name {
+  font-size: 14px;
+  color: #374151;
+}
+
+.feature-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* 结果统计 */
+.result-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.result-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.result-item.success {
+  background: #ecfdf5;
+  border: 1px solid #d1fae5;
+}
+
+.result-item.failed {
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+}
+
+.result-label {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.result-value {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.result-item.success .result-value {
+  color: #059669;
+}
+
+.result-item.failed .result-value {
+  color: #dc2626;
+}
+</style>
