@@ -138,21 +138,43 @@ jobs:
           echo "migrate_image=ghcr.io/${image_owner}/studyforge-ai-migrate" >> "$GITHUB_OUTPUT"
           echo "mysql_image=ghcr.io/${image_owner}/studyforge-ai-mysql" >> "$GITHUB_OUTPUT"
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR (for cache)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
       - name: Build Docker images
         run: |
           set -euo pipefail
-          docker build -f deploy/docker/api.Dockerfile \
-            -t "${{ steps.docker_meta.outputs.api_image }}:${{ github.sha }}" \
-            -t "${{ steps.docker_meta.outputs.api_image }}:staging" .
-          docker build -f deploy/docker/web.Dockerfile \
-            -t "${{ steps.docker_meta.outputs.web_image }}:${{ github.sha }}" \
-            -t "${{ steps.docker_meta.outputs.web_image }}:staging" .
-          docker build -f deploy/docker/migrate.Dockerfile \
-            -t "${{ steps.docker_meta.outputs.migrate_image }}:${{ github.sha }}" \
-            -t "${{ steps.docker_meta.outputs.migrate_image }}:staging" .
-          docker build -f deploy/docker/mysql.Dockerfile \
-            -t "${{ steps.docker_meta.outputs.mysql_image }}:${{ github.sha }}" \
-            -t "${{ steps.docker_meta.outputs.mysql_image }}:staging" .
+          docker buildx build -f deploy/docker/api.Dockerfile \
+            --cache-from type=registry,ref=${{ steps.docker_meta.outputs.api_image }}:buildcache \
+            --cache-to type=registry,ref=${{ steps.docker_meta.outputs.api_image }}:buildcache,mode=max \
+            --tag "${{ steps.docker_meta.outputs.api_image }}:${{ github.sha }}" \
+            --tag "${{ steps.docker_meta.outputs.api_image }}:staging" \
+            --load .
+          docker buildx build -f deploy/docker/web.Dockerfile \
+            --cache-from type=registry,ref=${{ steps.docker_meta.outputs.web_image }}:buildcache \
+            --cache-to type=registry,ref=${{ steps.docker_meta.outputs.web_image }}:buildcache,mode=max \
+            --tag "${{ steps.docker_meta.outputs.web_image }}:${{ github.sha }}" \
+            --tag "${{ steps.docker_meta.outputs.web_image }}:staging" \
+            --load .
+          docker buildx build -f deploy/docker/migrate.Dockerfile \
+            --cache-from type=registry,ref=${{ steps.docker_meta.outputs.migrate_image }}:buildcache \
+            --cache-to type=registry,ref=${{ steps.docker_meta.outputs.migrate_image }}:buildcache,mode=max \
+            --tag "${{ steps.docker_meta.outputs.migrate_image }}:${{ github.sha }}" \
+            --tag "${{ steps.docker_meta.outputs.migrate_image }}:staging" \
+            --load .
+          docker buildx build -f deploy/docker/mysql.Dockerfile \
+            --cache-from type=registry,ref=${{ steps.docker_meta.outputs.mysql_image }}:buildcache \
+            --cache-to type=registry,ref=${{ steps.docker_meta.outputs.mysql_image }}:buildcache,mode=max \
+            --tag "${{ steps.docker_meta.outputs.mysql_image }}:${{ github.sha }}" \
+            --tag "${{ steps.docker_meta.outputs.mysql_image }}:staging" \
+            --load .
 
       - name: Login to GHCR
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
