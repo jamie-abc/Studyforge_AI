@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { useSessionStore } from '@/stores/session';
 import HomeView from '@/views/HomeView.vue';
 import AccountSettingsView from '@/views/AccountSettingsView.vue';
 import FavoritesView from '@/views/FavoritesView.vue';
@@ -107,4 +108,16 @@ export const router = createRouter({
   scrollBehavior() {
     return { top: 0 };
   }
+});
+
+router.beforeEach((to) => {
+  const sessionStore = useSessionStore();
+  sessionStore.hydrate();
+  sessionStore.syncFromStorage();
+
+  if (to.name === 'login' && sessionStore.isAuthenticated) {
+    return typeof to.query.redirect === 'string' ? to.query.redirect : '/knowledge';
+  }
+
+  return true;
 });

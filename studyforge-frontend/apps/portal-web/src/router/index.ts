@@ -60,6 +60,7 @@ export const router = createRouter({
 router.beforeEach((to) => {
   const authStore = useAuthStore();
   authStore.hydrate();
+  authStore.syncFromStorage();
 
   if (!to.meta.public && !authStore.isAuthenticated) {
     return {

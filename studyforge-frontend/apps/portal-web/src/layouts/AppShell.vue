@@ -25,39 +25,37 @@ const currentLanguage = computed({
   set: (value: 'zh_CN' | 'en_US') => preferencesStore.setLanguageCode(value)
 });
 
-const copy = computed(() => {
-  if (preferencesStore.languageCode === 'en_US') {
-    return {
-      brandSub: 'Content Console',
-      navAria: 'Primary navigation',
-      content: 'Content Feed',
-      dashboard: 'Operations',
-      community: 'Community',
-      homepageReviews: 'Homepage Reviews',
-      settings: 'AI Settings',
-      apiStack: 'API: Spring MVC JSON',
-      dataStack: 'Data: MyBatis + MySQL',
-      workspace: 'Local Workspace',
-      language: 'Language',
-      logout: 'Log out'
-    };
-  }
-
-  return {
-    brandSub: '内容工作台',
-    navAria: '主导航',
-    content: '内容流',
-    dashboard: '运营看板',
-    community: '社区管理',
-    homepageReviews: '主页审核',
-    settings: 'AI 与模型设置',
-    apiStack: '接口：Spring MVC JSON',
-    dataStack: '数据：MyBatis + MySQL',
-    workspace: '本地工作台',
-    language: '语言',
-    logout: '退出登录'
-  };
-});
+const copy = computed(() =>
+  preferencesStore.languageCode === 'en_US'
+    ? {
+        brandSub: 'Content Console',
+        navAria: 'Primary navigation',
+        content: 'Content Feed',
+        dashboard: 'Operations',
+        community: 'Community',
+        homepageReviews: 'Homepage Reviews',
+        settings: 'AI Settings',
+        apiStack: 'API: Spring MVC JSON',
+        dataStack: 'Data: MyBatis + MySQL',
+        workspace: 'Local Workspace',
+        language: 'Language',
+        logout: 'Log out'
+      }
+    : {
+        brandSub: '内容工作台',
+        navAria: '主导航',
+        content: '内容流',
+        dashboard: '运营看板',
+        community: '社区管理',
+        homepageReviews: '主页审核',
+        settings: 'AI 与模型设置',
+        apiStack: '接口：Spring MVC JSON',
+        dataStack: '数据：MyBatis + MySQL',
+        workspace: '本地工作台',
+        language: '语言',
+        logout: '退出登录'
+      }
+);
 
 async function handleLogout() {
   await authStore.logout();
