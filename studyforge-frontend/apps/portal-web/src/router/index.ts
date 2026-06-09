@@ -1,8 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import AdminDashboardView from '@/views/AdminDashboardView.vue';
+import AiDashboardView from '@/views/AiDashboardView.vue';
 import CommunityManageView from '@/views/CommunityManageView.vue';
 import FeedView from '@/views/FeedView.vue';
+import HomepageReviewView from '@/views/HomepageReviewView.vue';
 import LoginView from '@/views/LoginView.vue';
 import PostDetailView from '@/views/PostDetailView.vue';
 import SettingsView from '@/views/SettingsView.vue';
@@ -44,9 +46,20 @@ export const router = createRouter({
       component: CommunityManageView
     },
     {
+      path: '/homepage-reviews',
+      name: 'homepage-reviews',
+      component: HomepageReviewView
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: SettingsView
+    },
+    {
+      path: '/ai-dashboard',
+      name: 'ai-dashboard',
+      component: AiDashboardView,
+      meta: { requiresAdmin: true }
     }
   ]
 });
@@ -54,6 +67,7 @@ export const router = createRouter({
 router.beforeEach((to) => {
   const authStore = useAuthStore();
   authStore.hydrate();
+  authStore.syncFromStorage();
 
   if (!to.meta.public && !authStore.isAuthenticated) {
     return {
@@ -66,6 +80,13 @@ router.beforeEach((to) => {
 
   if (to.name === 'login' && authStore.isAuthenticated) {
     return '/feed';
+  }
+
+  if (to.meta.requiresAdmin && authStore.role !== 'ADMIN') {
+    return {
+      path: '/feed',
+      query: { message: 'admin_required' }
+    };
   }
 
   return true;
