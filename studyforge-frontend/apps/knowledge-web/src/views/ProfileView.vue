@@ -109,7 +109,25 @@ const copy = computed(() => {
       commented: 'commented on a post',
       liked: 'liked a post',
       favorited: 'saved a post',
-      openContent: 'Open content'
+      openContent: 'Open content',
+      calls: 'calls',
+      aiUsageTitle: 'AI Usage Statistics',
+      noAiUsage: 'No AI usage records',
+      totalCalls: 'Total Calls',
+      totalTokens: 'Total Tokens',
+      totalCost: 'Total Cost',
+      successRate: 'Success Rate',
+      tokenUsage: 'Token Statistics',
+      promptTokens: 'Prompt Tokens',
+      completionTokens: 'Completion Tokens',
+      featureUsage: 'Feature Distribution',
+      summary: 'Summary',
+      reviewCard: 'Review Cards',
+      qa: 'Q&A',
+      markdownFormat: 'Markdown Format',
+      callResults: 'Call Results',
+      success: 'Success',
+      failed: 'Failed'
     };
   }
 
@@ -160,7 +178,25 @@ const copy = computed(() => {
     commented: '评论了帖子',
     liked: '点赞了帖子',
     favorited: '收藏了帖子',
-    openContent: '打开'
+    openContent: '打开',
+    calls: '次',
+    aiUsageTitle: 'AI 使用统计',
+    noAiUsage: '暂无 AI 使用记录',
+    totalCalls: '总调用次数',
+    totalTokens: '总 Token',
+    totalCost: '总费用',
+    successRate: '成功率',
+    tokenUsage: 'Token 使用情况',
+    promptTokens: '输入 Token',
+    completionTokens: '输出 Token',
+    featureUsage: '功能使用分布',
+    summary: '摘要生成',
+    reviewCard: '复习卡片',
+    qa: '问答',
+    markdownFormat: 'Markdown 格式化',
+    callResults: '调用结果统计',
+    success: '成功',
+    failed: '失败'
   };
 });
 
@@ -458,10 +494,10 @@ watch(() => [route.fullPath, sessionStore.isAuthenticated, preferencesStore.lang
 
       <!-- AI 用量标签页 -->
       <section v-else-if="activeTab === 'ai-usage'" class="ai-usage-section">
-        <h2>AI 使用统计</h2>
+        <h2>{{ copy.aiUsageTitle }}</h2>
         
         <div v-if="!aiUsage" class="empty-usage">
-          <p>暂无 AI 使用记录</p>
+          <p>{{ copy.noAiUsage }}</p>
         </div>
         
         <template v-else>
@@ -470,39 +506,39 @@ watch(() => [route.fullPath, sessionStore.isAuthenticated, preferencesStore.lang
             <div class="usage-card">
               <div class="card-content">
                 <div class="card-value">{{ aiUsage.totalCalls || 0 }}</div>
-                <div class="card-label">总调用次数</div>
+                <div class="card-label">{{ copy.totalCalls }}</div>
               </div>
             </div>
             <div class="usage-card">
               <div class="card-content">
                 <div class="card-value">{{ aiUsage.totalTokens || 0 }}</div>
-                <div class="card-label">总 Token</div>
+                <div class="card-label">{{ copy.totalTokens }}</div>
               </div>
             </div>
             <div class="usage-card">
               <div class="card-content">
-                <div class="card-value">¥{{ (aiUsage.totalCostYuan || 0).toFixed(4) }}</div>
-                <div class="card-label">总费用</div>
+                <div class="card-value">¥{{ Number(aiUsage.totalCostYuan || 0).toFixed(4) }}</div>
+                <div class="card-label">{{ copy.totalCost }}</div>
               </div>
             </div>
             <div class="usage-card">
               <div class="card-content">
                 <div class="card-value">{{ aiUsage.successRate || 0 }}%</div>
-                <div class="card-label">成功率</div>
+                <div class="card-label">{{ copy.successRate }}</div>
               </div>
             </div>
           </div>
 
           <!-- Token 详情 -->
           <div class="usage-details">
-            <h3>Token 使用情况</h3>
+            <h3>{{ copy.tokenUsage }}</h3>
             <div class="token-breakdown">
               <div class="token-item">
-                <span class="token-label">输入 Token</span>
+                <span class="token-label">{{ copy.promptTokens }}</span>
                 <span class="token-value">{{ aiUsage.totalPromptTokens || 0 }}</span>
               </div>
               <div class="token-item">
-                <span class="token-label">输出 Token</span>
+                <span class="token-label">{{ copy.completionTokens }}</span>
                 <span class="token-value">{{ aiUsage.totalCompletionTokens || 0 }}</span>
               </div>
             </div>
@@ -510,38 +546,38 @@ watch(() => [route.fullPath, sessionStore.isAuthenticated, preferencesStore.lang
 
           <!-- 功能分布 -->
           <div class="usage-details">
-            <h3>功能使用分布</h3>
+            <h3>{{ copy.featureUsage }}</h3>
             <div class="feature-distribution">
               <div class="feature-item">
-                <span class="feature-name">摘要生成</span>
-                <span class="feature-count">{{ aiUsage.summaryCalls || 0 }} 次</span>
+                <span class="feature-name">{{ copy.summary }}</span>
+                <span class="feature-count">{{ aiUsage.summaryCalls || 0 }} {{ copy.calls }}</span>
               </div>
               <div class="feature-item">
-                <span class="feature-name">复习卡片</span>
-                <span class="feature-count">{{ aiUsage.reviewCardCalls || 0 }} 次</span>
+                <span class="feature-name">{{ copy.reviewCard }}</span>
+                <span class="feature-count">{{ aiUsage.reviewCardCalls || 0 }} {{ copy.calls }}</span>
               </div>
               <div class="feature-item">
-                <span class="feature-name">问答</span>
-                <span class="feature-count">{{ aiUsage.questionCalls || 0 }} 次</span>
+                <span class="feature-name">{{ copy.qa }}</span>
+                <span class="feature-count">{{ aiUsage.questionCalls || 0 }} {{ copy.calls }}</span>
               </div>
               <div class="feature-item">
-                <span class="feature-name">Markdown 格式化</span>
-                <span class="feature-count">{{ aiUsage.markdownFormatCalls || 0 }} 次</span>
+                <span class="feature-name">{{ copy.markdownFormat }}</span>
+                <span class="feature-count">{{ aiUsage.markdownFormatCalls || 0 }} {{ copy.calls }}</span>
               </div>
             </div>
           </div>
 
           <!-- 成功/失败统计 -->
           <div class="usage-details">
-            <h3>调用结果统计</h3>
+            <h3>{{ copy.callResults }}</h3>
             <div class="result-stats">
               <div class="result-item success">
-                <span class="result-label">成功</span>
-                <span class="result-value">{{ aiUsage.successfulCalls || 0 }} 次</span>
+                <span class="result-label">{{ copy.success }}</span>
+                <span class="result-value">{{ aiUsage.successfulCalls || 0 }} {{ copy.calls }}</span>
               </div>
               <div class="result-item failed">
-                <span class="result-label">失败</span>
-                <span class="result-value">{{ aiUsage.failedCalls || 0 }} 次</span>
+                <span class="result-label">{{ copy.failed }}</span>
+                <span class="result-value">{{ aiUsage.failedCalls || 0 }} {{ copy.calls }}</span>
               </div>
             </div>
           </div>

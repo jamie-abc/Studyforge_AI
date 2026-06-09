@@ -3,6 +3,8 @@ package com.studyforge.ai.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studyforge.system.service.IntegrationSettingService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +34,8 @@ public class AiTokenBillingService {
     private final IntegrationSettingService integrationSettingService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    
+    private static final Logger log = LoggerFactory.getLogger(AiTokenBillingService.class);
     
     @Autowired
     public AiTokenBillingService(IntegrationSettingService integrationSettingService) {
@@ -83,7 +87,7 @@ public class AiTokenBillingService {
             return response.body();
             
         } catch (Exception e) {
-            System.err.println("[AI Token Billing] API call failed: " + e.getMessage());
+            log.error("[AI Token Billing] API call failed", e);
             return null;
         }
     }

@@ -73,18 +73,21 @@ public class AiController {
         // 使用计费服务调用 API（获取完整响应）
         String prompt = buildSummaryPrompt(post.content(), promptLanguage);
         String fullResponse = tokenBillingService.callApiWithUsage(prompt);
-        String text = fullResponse != null ? tokenBillingService.extractTextFromResponse(fullResponse) : "";
         
-        // 记录日志并获取 logId
-        Long logId = logWithId(userId, postId, "SUMMARY", post.content(), text, 1);
-        
-        // 记录 token 使用情况
-        if (fullResponse != null && logId != null) {
-            String modelName = tokenBillingService.getCurrentModel();
-            tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+        if (fullResponse != null) {
+            String text = tokenBillingService.extractTextFromResponse(fullResponse);
+            Long logId = logWithId(userId, postId, "SUMMARY", post.content(), text, 1);
+            if (logId != null) {
+                String modelName = tokenBillingService.getCurrentModel();
+                tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+            }
+            return ApiResponse.success(new AiResultVO("SUMMARY", promptLanguage, text));
         }
         
-        return ApiResponse.success(new AiResultVO("SUMMARY", promptLanguage, text));
+        // 降级到原生 AiService
+        String fallbackText = aiService.generateSummary(post.content(), promptLanguage);
+        log(userId, postId, "SUMMARY", post.content(), fallbackText, 0);
+        return ApiResponse.success(new AiResultVO("SUMMARY", promptLanguage, fallbackText));
     }
 
     @PostMapping("/posts/{postId}/review-cards")
@@ -98,16 +101,21 @@ public class AiController {
         
         String prompt = buildQuizPrompt(post.content(), promptLanguage);
         String fullResponse = tokenBillingService.callApiWithUsage(prompt);
-        String text = fullResponse != null ? tokenBillingService.extractTextFromResponse(fullResponse) : "";
         
-        Long logId = logWithId(userId, postId, "REVIEW_CARD", post.content(), text, 1);
-        
-        if (fullResponse != null && logId != null) {
-            String modelName = tokenBillingService.getCurrentModel();
-            tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+        if (fullResponse != null) {
+            String text = tokenBillingService.extractTextFromResponse(fullResponse);
+            Long logId = logWithId(userId, postId, "REVIEW_CARD", post.content(), text, 1);
+            if (logId != null) {
+                String modelName = tokenBillingService.getCurrentModel();
+                tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+            }
+            return ApiResponse.success(new AiResultVO("REVIEW_CARD", promptLanguage, text));
         }
         
-        return ApiResponse.success(new AiResultVO("REVIEW_CARD", promptLanguage, text));
+        // 降级到原生 AiService
+        String fallbackText = aiService.generateQuiz(post.content(), promptLanguage);
+        log(userId, postId, "REVIEW_CARD", post.content(), fallbackText, 0);
+        return ApiResponse.success(new AiResultVO("REVIEW_CARD", promptLanguage, fallbackText));
     }
 
     @PostMapping("/posts/{postId}/questions")
@@ -122,16 +130,21 @@ public class AiController {
         String question = request == null ? "" : request.question();
         String prompt = buildQuestionPrompt(post.content(), question, promptLanguage);
         String fullResponse = tokenBillingService.callApiWithUsage(prompt);
-        String text = fullResponse != null ? tokenBillingService.extractTextFromResponse(fullResponse) : "";
         
-        Long logId = logWithId(userId, postId, "QUESTION", question, text, 1);
-        
-        if (fullResponse != null && logId != null) {
-            String modelName = tokenBillingService.getCurrentModel();
-            tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+        if (fullResponse != null) {
+            String text = tokenBillingService.extractTextFromResponse(fullResponse);
+            Long logId = logWithId(userId, postId, "QUESTION", question, text, 1);
+            if (logId != null) {
+                String modelName = tokenBillingService.getCurrentModel();
+                tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+            }
+            return ApiResponse.success(new AiResultVO("QUESTION", promptLanguage, text));
         }
         
-        return ApiResponse.success(new AiResultVO("QUESTION", promptLanguage, text));
+        // 降级到原生 AiService
+        String fallbackText = aiService.answerQuestion(post.content(), question, promptLanguage);
+        log(userId, postId, "QUESTION", question, fallbackText, 0);
+        return ApiResponse.success(new AiResultVO("QUESTION", promptLanguage, fallbackText));
     }
 
     @PostMapping("/markdown/format")
@@ -151,16 +164,21 @@ public class AiController {
         
         String prompt = buildMarkdownPrompt(source, promptLanguage);
         String fullResponse = tokenBillingService.callApiWithUsage(prompt);
-        String text = fullResponse != null ? tokenBillingService.extractTextFromResponse(fullResponse) : "";
         
-        Long logId = logWithId(userId, null, "MARKDOWN_FORMAT", source, text, 1);
-        
-        if (fullResponse != null && logId != null) {
-            String modelName = tokenBillingService.getCurrentModel();
-            tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+        if (fullResponse != null) {
+            String text = tokenBillingService.extractTextFromResponse(fullResponse);
+            Long logId = logWithId(userId, null, "MARKDOWN_FORMAT", source, text, 1);
+            if (logId != null) {
+                String modelName = tokenBillingService.getCurrentModel();
+                tokenUsageLogger.logTokenUsage(logId, fullResponse, modelName);
+            }
+            return ApiResponse.success(new AiResultVO("MARKDOWN_FORMAT", promptLanguage, text));
         }
         
-        return ApiResponse.success(new AiResultVO("MARKDOWN_FORMAT", promptLanguage, text));
+        // 降级到原生 AiService
+        String fallbackText = aiService.formatMarkdown(source, promptLanguage);
+        log(userId, null, "MARKDOWN_FORMAT", source, fallbackText, 0);
+        return ApiResponse.success(new AiResultVO("MARKDOWN_FORMAT", promptLanguage, fallbackText));
     }
 
     @PostMapping("/covers/generate")

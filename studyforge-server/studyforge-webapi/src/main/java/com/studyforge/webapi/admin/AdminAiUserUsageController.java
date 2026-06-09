@@ -13,7 +13,7 @@ import java.util.List;
  * 管理员 - 用户 AI 使用统计控制器
  */
 @RestController
-@RequestMapping("/admin/ai/users")
+@RequestMapping("/api/v1/admin/ai/users")
 public class AdminAiUserUsageController {
     
     @Autowired

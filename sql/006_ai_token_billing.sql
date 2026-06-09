@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS ai_model_pricing (
     remark VARCHAR(500) NULL COMMENT '备注',
     created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_ai_model_pricing_model_name (model_name),
+    UNIQUE KEY uk_ai_model_pricing_model_date (model_name, effective_date),
     KEY idx_ai_model_pricing_active (is_active, effective_date DESC)
 ) ENGINE=InnoDB COMMENT='AI模型价格配置表';
 

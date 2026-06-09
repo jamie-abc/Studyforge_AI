@@ -2,6 +2,8 @@ package com.studyforge.ai.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -28,6 +30,8 @@ public class AiTokenUsageLogger {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
     
+    private static final Logger log = LoggerFactory.getLogger(AiTokenUsageLogger.class);
+
     @Autowired
     public AiTokenUsageLogger(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -73,7 +77,7 @@ public class AiTokenUsageLogger {
             
         } catch (Exception e) {
             // 记录失败不影响主流程，只记录错误日志
-            System.err.println("[AI Token Logger] Failed to log token usage for logId=" + logId + ": " + e.getMessage());
+            log.warn("[AI Token Logger] Failed to log token usage for logId={}", logId, e);
         }
     }
     
@@ -114,7 +118,7 @@ public class AiTokenUsageLogger {
             
         } catch (Exception e) {
             // 如果查询价格失败，返回 0
-            System.err.println("[AI Token Logger] Failed to calculate cost for model " + modelName + ": " + e.getMessage());
+            log.warn("[AI Token Logger] Failed to calculate cost for model: {}", modelName, e);
             return BigDecimal.ZERO;
         }
     }

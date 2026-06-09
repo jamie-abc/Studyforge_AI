@@ -1,20 +1,64 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Activity, AlertTriangle, BarChart3, CheckCircle, TrendingUp, Users } from '@lucide/vue';
 import { getAiUsageOverview, getAiUsageTrend, type AiUsageOverview, type AiDailyStats } from '@/api/ai-stats';
 import LoadingState from '@/components/LoadingState.vue';
+import { usePreferencesStore } from '@/stores/preferences';
+
+const preferencesStore = usePreferencesStore();
 
 const overview = ref<AiUsageOverview | null>(null);
 const trendData = ref<AiDailyStats[]>([]);
 const loading = ref(false);
 const errorMessage = ref('');
 
+const copy = computed(() => {
+  if (preferencesStore.languageCode === 'en_US') {
+    return {
+      heading: 'AI Usage Dashboard',
+      loading: 'Loading statistics...',
+      loadFailed: 'Failed to load data. Please refresh and try again.',
+      loadStatsFailed: 'Failed to load statistics',
+      loadTrendFailed: 'Failed to load trend data',
+      todayCalls: "Today's Calls",
+      successRate: 'Success Rate',
+      successfulCalls: 'Successful Calls',
+      failed: 'Failed',
+      calls: 'calls',
+      uniqueUsers: 'Unique Users',
+      activeUsersToday: 'Active users today',
+      monthCalls: 'Monthly Total Calls',
+      estimatedCost: 'Estimated Cost',
+      featureDistribution: 'Feature Distribution (Last 30 Days)',
+      trend7Days: '7-Day Call Trend',
+    };
+  }
+  return {
+    heading: 'AI 使用监控面板',
+    loading: '正在加载统计数据',
+    loadFailed: '加载数据失败，请刷新重试',
+    loadStatsFailed: '加载统计数据失败',
+    loadTrendFailed: '加载趋势数据失败',
+    todayCalls: '今日调用次数',
+    successRate: '成功率',
+    successfulCalls: '成功调用',
+    failed: '失败',
+    calls: '次',
+    uniqueUsers: '独立用户数',
+    activeUsersToday: '今日活跃用户',
+    monthCalls: '本月总调用',
+    estimatedCost: '预估费用',
+    featureDistribution: '功能调用分布（最近30天）',
+    trend7Days: '近7天调用趋势',
+  };
+});
+
 // 加载概览数据
 async function loadOverview() {
   try {
     overview.value = await getAiUsageOverview();
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '加载统计数据失败';
+    errorMessage.value = error instanceof Error ? error.message : copy.value.loadStatsFailed;
   }
 }
 
@@ -23,7 +67,7 @@ async function loadTrend() {
   try {
     trendData.value = await getAiUsageTrend(7); // 最近7天
   } catch (error) {
-    console.error('加载趋势数据失败:', error);
+    console.error(copy.value.loadTrendFailed, error);
   }
 }
 
@@ -33,7 +77,7 @@ onMounted(async () => {
   try {
     await Promise.all([loadOverview(), loadTrend()]);
   } catch (error) {
-    errorMessage.value = '加载数据失败，请刷新重试';
+    errorMessage.value = copy.value.loadFailed;
   } finally {
     loading.value = false;
   }
@@ -51,11 +95,11 @@ function formatDate(dateStr: string): string {
     <div class="page-header">
       <div class="section-heading">
         <span>AI Monitoring</span>
-        <h1>AI 使用监控面板</h1>
+        <h1>{{ copy.heading }}</h1>
       </div>
     </div>
 
-    <LoadingState v-if="loading" label="正在加载统计数据" />
+    <LoadingState v-if="loading" :label="copy.loading" />
     
     <div v-if="errorMessage" class="error-alert">
       <AlertTriangle :size="20" />
@@ -70,11 +114,11 @@ function formatDate(dateStr: string): string {
             <Activity :size="24" />
           </div>
           <div class="stat-content">
-            <div class="stat-label">今日调用次数</div>
+            <div class="stat-label">{{ copy.todayCalls }}</div>
             <div class="stat-value">{{ overview.todayTotalCalls }}</div>
             <div class="stat-trend">
               <TrendingUp :size="14" />
-              <span>成功率 {{ overview.todaySuccessRate }}%</span>
+              <span>{{ copy.successRate }} {{ overview.todaySuccessRate }}%</span>
             </div>
           </div>
         </div>
@@ -84,9 +128,9 @@ function formatDate(dateStr: string): string {
             <CheckCircle :size="24" />
           </div>
           <div class="stat-content">
-            <div class="stat-label">成功调用</div>
+            <div class="stat-label">{{ copy.successfulCalls }}</div>
             <div class="stat-value">{{ overview.todaySuccessfulCalls }}</div>
-            <div class="stat-sub">失败 {{ overview.todayFailedCalls }} 次</div>
+            <div class="stat-sub">{{ copy.failed }} {{ overview.todayFailedCalls }} {{ copy.calls }}</div>
           </div>
         </div>
 
@@ -95,9 +139,9 @@ function formatDate(dateStr: string): string {
             <Users :size="24" />
           </div>
           <div class="stat-content">
-            <div class="stat-label">独立用户数</div>
+            <div class="stat-label">{{ copy.uniqueUsers }}</div>
             <div class="stat-value">{{ overview.todayUniqueUsers }}</div>
-            <div class="stat-sub">今日活跃用户</div>
+            <div class="stat-sub">{{ copy.activeUsersToday }}</div>
           </div>
         </div>
 
@@ -106,16 +150,16 @@ function formatDate(dateStr: string): string {
             <BarChart3 :size="24" />
           </div>
           <div class="stat-content">
-            <div class="stat-label">本月总调用</div>
+            <div class="stat-label">{{ copy.monthCalls }}</div>
             <div class="stat-value">{{ overview.monthTotalCalls }}</div>
-            <div class="stat-sub">预估费用 ¥{{ overview.estimatedCost }}</div>
+            <div class="stat-sub">{{ copy.estimatedCost }} ¥{{ overview.estimatedCost }}</div>
           </div>
         </div>
       </div>
 
       <!-- 功能分布 -->
       <div class="chart-section">
-        <h2>功能调用分布（最近30天）</h2>
+        <h2>{{ copy.featureDistribution }}</h2>
         <div class="distribution-list">
           <div 
             v-for="item in overview.featureDistribution" 
@@ -124,7 +168,7 @@ function formatDate(dateStr: string): string {
           >
             <div class="dist-info">
               <span class="dist-type">{{ item.featureType }}</span>
-              <span class="dist-count">{{ item.callCount }} 次</span>
+              <span class="dist-count">{{ item.callCount }} {{ copy.calls }}</span>
             </div>
             <div class="dist-bar">
               <div 
@@ -139,12 +183,12 @@ function formatDate(dateStr: string): string {
 
       <!-- 调用趋势图 -->
       <div class="chart-section">
-        <h2>近7天调用趋势</h2>
+        <h2>{{ copy.trend7Days }}</h2>
         <div class="trend-chart">
           <div v-for="day in trendData" :key="day.statDate" class="trend-bar-wrapper">
             <div 
               class="trend-bar"
-              :style="{ height: (day.totalCalls / Math.max(...trendData.map(d => d.totalCalls)) * 100) + '%' }"
+              :style="{ height: (() => { const max = Math.max(...trendData.map(d => d.totalCalls)); return max > 0 ? (day.totalCalls / max * 100) + '%' : '4px'; })() }"
             ></div>
             <div class="trend-date">{{ formatDate(day.statDate) }}</div>
             <div class="trend-value">{{ day.totalCalls }}</div>

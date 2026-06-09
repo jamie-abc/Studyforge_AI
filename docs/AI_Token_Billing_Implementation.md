@@ -16,7 +16,7 @@
 ### 新增组件
 
 #### 1. 数据库层
-- **文件**: `sql/006_ai_token_pricing.sql`
+- **文件**: `sql/006_ai_token_billing.sql`
 - **功能**:
   - 为 `ai_logs` 表添加 token 统计字段
   - 创建 `ai_model_pricing` 价格配置表
@@ -31,13 +31,19 @@
 **价格配置表**:
 ```sql
 CREATE TABLE ai_model_pricing (
-    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-    model_name VARCHAR(100) NOT NULL,
-    input_price DECIMAL(10, 6) NOT NULL,   -- 输入价格（元/1K tokens）
-    output_price DECIMAL(10, 6) NOT NULL,  -- 输出价格（元/1K tokens）
-    effective_date DATE NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
-);
+    pricing_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    model_name VARCHAR(100) NOT NULL COMMENT '模型名称',
+    prompt_price_per_1k DECIMAL(10, 6) NOT NULL COMMENT '输入token价格（元/千tokens）',
+    completion_price_per_1k DECIMAL(10, 6) NOT NULL COMMENT '输出token价格（元/千tokens）',
+    currency VARCHAR(10) NOT NULL DEFAULT 'CNY' COMMENT '货币单位',
+    effective_date DATE NOT NULL COMMENT '价格生效日期',
+    is_active TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_ai_model_pricing_model_date (model_name, effective_date),
+    KEY idx_ai_model_pricing_active (is_active, effective_date DESC)
+) ENGINE=InnoDB COMMENT='AI模型价格配置表';
 ```
 
 #### 2. 实体层
@@ -100,12 +106,12 @@ CREATE TABLE ai_model_pricing (
 ### 1. 执行数据库脚本
 
 ```powershell
-# 执行 token 计费配置脚本
-Get-Content "sql\006_ai_token_pricing.sql" | mysql -u root -p12345 studyforge_ai
+# 执行 token 计费配置脚本（会提示输入密码）
+mysql -u root -p studyforge_ai < sql\006_ai_token_billing.sql
 
 # 验证表结构
-mysql -u root -p12345 studyforge_ai -e "DESCRIBE ai_logs;"
-mysql -u root -p12345 studyforge_ai -e "SELECT * FROM ai_model_pricing;"
+mysql -u root -p studyforge_ai -e "DESCRIBE ai_logs;"
+mysql -u root -p studyforge_ai -e "SELECT * FROM ai_model_pricing;"
 ```
 
 ### 2. 重新编译项目
@@ -128,8 +134,20 @@ mvn clean package -DskipTests
 ### 4. 测试功能
 
 ```powershell
-# 执行测试脚本
-Get-Content "sql\007_test_token_billing.sql" | mysql -u root -p12345 studyforge_ai
+# 直接执行验证查询，不依赖额外脚本
+mysql -u root -p studyforge_ai -e "
+-- 查看 token 统计字段是否生效
+SELECT COUNT(*) AS logs_with_tokens FROM ai_logs WHERE prompt_tokens IS NOT NULL;
+
+-- 查看模型价格配置
+SELECT model_name, prompt_price_per_1k, completion_price_per_1k, effective_date
+FROM ai_model_pricing WHERE is_active = 1;
+
+-- 查看当月费用统计
+SELECT COALESCE(SUM(cost_yuan), 0) AS month_total_cost
+FROM ai_logs
+WHERE YEAR(created_time) = YEAR(CURDATE()) AND MONTH(created_time) = MONTH(CURDATE());
+"
 ```
 
 ## 🔍 工作流程
@@ -188,8 +206,8 @@ AiTokenUsageLogger.logTokenUsage(logId, response, modelName)
 ### 添加新模型价格
 
 ```sql
-INSERT INTO ai_model_pricing (model_name, input_price, output_price, effective_date, status)
-VALUES ('new-model-name', 0.003, 0.012, CURDATE(), 'ACTIVE');
+INSERT INTO ai_model_pricing (model_name, prompt_price_per_1k, completion_price_per_1k, effective_date, is_active, remark)
+VALUES ('new-model-name', 0.003, 0.012, CURDATE(), 1, '新模型');
 ```
 
 ### 查看费用统计

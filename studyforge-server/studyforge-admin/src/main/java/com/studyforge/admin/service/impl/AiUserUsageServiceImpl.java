@@ -2,6 +2,8 @@ package com.studyforge.admin.service.impl;
 
 import com.studyforge.admin.service.AiUserUsageService;
 import com.studyforge.admin.vo.AiUserUsageVO;
+import com.studyforge.common.exception.BizException;
+import com.studyforge.common.exception.ErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -43,9 +45,13 @@ public class AiUserUsageServiceImpl implements AiUserUsageService {
             GROUP BY u.user_id, u.username, u.display_name
             """;
         
-        Map<String, Object> result = jdbcTemplate.queryForMap(sql, userId);
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, userId);
         
-        return mapToVO(result);
+        if (results.isEmpty()) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        
+        return mapToVO(results.get(0));
     }
     
     @Override

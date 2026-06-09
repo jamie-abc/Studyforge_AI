@@ -62,11 +62,11 @@ public class AiUsageStatsServiceImpl implements AiUsageStatsService {
         Integer monthCalls = jdbcTemplate.queryForObject(monthSql, Integer.class);
         overview.setMonthTotalCalls(monthCalls != null ? monthCalls : 0);
         
-        // 预估费用（简化计算，实际应根据各模型的token消耗计算）
-        BigDecimal estimatedCost = BigDecimal.valueOf(overview.getMonthTotalCalls())
-                .multiply(BigDecimal.valueOf(0.001))
-                .setScale(2, RoundingMode.HALF_UP);
-        overview.setEstimatedCost(estimatedCost);
+        // 本月实际费用（聚合真实 cost_yuan，旧数据为 NULL 时计为 0）
+        String monthCostSql = "SELECT COALESCE(SUM(cost_yuan), 0) FROM ai_logs " +
+                "WHERE YEAR(created_time) = YEAR(CURDATE()) AND MONTH(created_time) = MONTH(CURDATE())";
+        BigDecimal monthCost = jdbcTemplate.queryForObject(monthCostSql, BigDecimal.class);
+        overview.setEstimatedCost(monthCost != null ? monthCost.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO);
         
         // 功能分布
         overview.setFeatureDistribution(getFeatureDistribution());
